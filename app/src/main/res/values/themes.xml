@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Uygulama içi UI Compose ile çizilir; bu tema pencere zemini + splash içindir. -->
+    <style name="Theme.DPIBypass" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/bg_dark_top</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- Android 12+ SplashScreen API: ikon = adaptive foreground, zemin = #0E1726 -->
+    <style name="Theme.DPIBypass.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/bg_dark_top</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.DPIBypass</item>
+    </style>
+</resources>
