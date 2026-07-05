@@ -97,8 +97,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val ordered = StrategyPool.orderedFor(family)
                 val hosts = StrategyTester.DEFAULT_BLOCKED_HOSTS + extraHosts(s)
 
-                // Tester sonuçlarını UI'a canlı yansıt.
-                val mirror = launch {
+                // Tester sonuçlarını UI'a canlı yansıt. (viewModelScope.launch -> Job;
+                // aşağıdaki mirror.cancel() için gerekli.)
+                val mirror = viewModelScope.launch {
                     tester.results.collect { _testResults.value = it }
                 }
                 val best = tester.run(ordered, hosts)

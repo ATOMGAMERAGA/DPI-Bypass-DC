@@ -193,9 +193,9 @@ private fun PresetRow(
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .background(
-                        if (selected) accentGradient() else Color.Transparent,
-                        CircleShape,
+                    .then(
+                        if (selected) Modifier.background(accentGradient(), CircleShape)
+                        else Modifier
                     ),
                 contentAlignment = Alignment.Center,
             ) {
