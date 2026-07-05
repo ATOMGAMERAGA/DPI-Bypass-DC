@@ -20,6 +20,11 @@ on:
         description: "Sürüm notları (opsiyonel)"
         required: false
         type: string
+      debug_signing:
+        description: "DEBUG anahtarıyla imzala (keystore secret'larını atla, hızlı test APK'sı üret)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write        # commit push + tag + release için gerekli
@@ -78,16 +83,19 @@ jobs:
       - name: Testler (release öncesi kapı)
         run: ./gradlew testDebugUnitTest lintDebug --stacktrace
 
-      - name: Keystore'u hazırla (secret varsa)
+      - name: Keystore'u hazırla (secret varsa ve debug_signing kapalıysa)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          DEBUG_SIGNING: ${{ inputs.debug_signing }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
+          if [ "$DEBUG_SIGNING" = "true" ]; then
+            echo "::notice::'DEBUG anahtarıyla imzala' seçili — keystore secret'ları atlanıyor, APK debug anahtarıyla imzalanacak."
+          elif [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
             echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
             echo "Keystore hazır — RESMİ imza ile release derlenecek."
           else
-            echo "::warning::KEYSTORE_BASE64 tanımlı değil. Release DEBUG anahtarıyla imzalanacak (kurulabilir, ama resmi dağıtım için KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD secret'larını tanımlayın)."
+            echo "::warning::KEYSTORE_BASE64 tanımlı değil. Release DEBUG anahtarıyla imzalanacak (kurulabilir, ama resmi dağıtım için KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD secret'larını tanımlayın, ya da bu çalıştırmada 'DEBUG anahtarıyla imzala' seçeneğini işaretleyin)."
           fi
 
       - name: Release APK derle
