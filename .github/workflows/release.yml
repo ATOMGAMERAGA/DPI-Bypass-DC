@@ -78,18 +78,22 @@ jobs:
       - name: Testler (release öncesi kapı)
         run: ./gradlew testDebugUnitTest lintDebug --stacktrace
 
-      - name: Keystore'u çöz
+      - name: Keystore'u hazırla (secret varsa)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::KEYSTORE_BASE64 secret'i tanımlı değil."; exit 1
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "Keystore hazır — RESMİ imza ile release derlenecek."
+          else
+            echo "::warning::KEYSTORE_BASE64 tanımlı değil. Release DEBUG anahtarıyla imzalanacak (kurulabilir, ama resmi dağıtım için KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD secret'larını tanımlayın)."
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
-      - name: İmzalı release APK derle
+      - name: Release APK derle
         env:
-          RELEASE_STORE_FILE: ${{ runner.temp }}/release.keystore
+          # RELEASE_STORE_FILE, keystore hazırsa önceki adımda GITHUB_ENV'e yazılır;
+          # yoksa tanımsız kalır ve build.gradle.kts debug imzasına düşer.
           RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}

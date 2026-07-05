@@ -44,12 +44,14 @@ android {
 
     buildTypes {
         release {
-            // Keystore ortam değişkenleri varsa release imzası, yoksa build'in
-            // yine de tamamlanabilmesi için imzasız bırakılır.
+            // Keystore ortam değişkenleri varsa RESMİ release imzası kullanılır.
+            // Yoksa (secret tanımlı değilse) build'in yine de KURULABİLİR bir APK
+            // üretebilmesi için debug anahtarına düşülür. Resmi dağıtım için
+            // KEYSTORE_BASE64 vb. secret'ları tanımlayın (bkz. CI-CD rehberi).
             signingConfig = if (System.getenv("RELEASE_STORE_FILE") != null) {
                 signingConfigs.getByName("release")
             } else {
-                null
+                signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
             isShrinkResources = true
