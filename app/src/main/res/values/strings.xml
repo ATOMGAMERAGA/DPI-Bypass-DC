@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DPI Bypass</string>
+
+    <!-- Bildirim -->
+    <string name="notification_channel_name">Bağlantı durumu</string>
+    <string name="notification_channel_desc">Tünelin bağlı olup olmadığını gösterir</string>
+    <string name="notification_connected">Bağlı · %1$s</string>
+    <string name="action_connect">Bağlan</string>
+    <string name="action_disconnect">Kes</string>
+
+    <!-- Durum -->
+    <string name="status_connecting">Bağlanıyor…</string>
+    <string name="status_connected">Bağlı</string>
+    <string name="status_disconnected">Bağlı değil</string>
+
+    <!-- Strateji -->
+    <string name="strategy_custom">Özel (Gelişmiş)</string>
+
+    <!-- Quick Settings tile -->
+    <string name="tile_label">DPI Bypass</string>
+</resources>

@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# ndk-build çıktısı (jniLibs derleme sırasında üretilir)
+/app/src/main/jniLibs/
+
+# İmzalama — release keystore ASLA repoya girmemeli (bkz. CI-CD rehberi)
+*.jks
+*.keystore
+keystore.b64
+release.keystore

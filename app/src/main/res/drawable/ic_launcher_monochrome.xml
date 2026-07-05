@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed icons için monokrom katman (logo-white). Sistem tek renkle tint eder. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:scaleX="0.66" android:scaleY="0.66" android:pivotX="256" android:pivotY="256">
+        <path
+            android:pathData="M256 40 L432 104 V268 C432 372 360 440 256 472 C152 440 80 372 80 268 V104 Z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="16"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M246 150 h20 a8 8 0 0 1 8 8 v196 a8 8 0 0 1 -8 8 h-20 a8 8 0 0 1 -8 -8 v-196 a8 8 0 0 1 8 -8 z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M120 200 L206 200 M306 200 L392 200 M120 256 L194 256 M218 256 L296 256 M318 256 L392 256 M120 312 L206 312 M306 312 L392 312"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="22"
+            android:strokeLineCap="round" />
+        <path android:pathData="M372 232 L414 256 L372 280 Z" android:fillColor="#FFFFFF" />
+    </group>
+</vector>

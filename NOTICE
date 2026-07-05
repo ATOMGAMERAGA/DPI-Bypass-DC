@@ -1,0 +1,32 @@
+DPI Bypass
+Copyright (C) 2026 Atom
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version. See the LICENSE file (GPL-3.0).
+
+--------------------------------------------------------------------------
+Üçüncü taraf bileşenler (Third-party components)
+--------------------------------------------------------------------------
+
+1) ByeDPI (ciadpi)
+   - Kaynak: https://github.com/hufrea/byedpi
+   - Lisans: GPL-3.0
+   - Rol: SOCKS5 proxy + DPI desync motoru (git submodule:
+     app/src/main/cpp/byedpi)
+
+2) hev-socks5-tunnel
+   - Kaynak: https://github.com/heiher/hev-socks5-tunnel
+   - Lisans: MIT (kendi alt bileşenleri: lwip, yaml, hev-task-system)
+   - Rol: TUN <-> SOCKS5 köprüsü (git submodule:
+     app/src/main/jni/hev-socks5-tunnel)
+
+3) ByeDPIAndroid (referans mimari)
+   - Kaynak: https://github.com/dovecoteescapee/ByeDPIAndroid
+   - Lisans: GPL-3.0
+   - Rol: Native (JNI/CMake) entegrasyonu ve VpnService yaklaşımı bu projeden
+     incelenip temel alınmıştır. cpp/native-lib.c, cpp/utils.c, jni/*.mk
+     dosyaları bu projeden uyarlanmıştır (paket adı değiştirilerek).
+
+Bu bileşenlerin GPL-3.0 olması nedeniyle bu uygulama da GPL-3.0 olarak yayımlanır.

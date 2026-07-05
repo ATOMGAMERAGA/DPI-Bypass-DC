@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground: logo içeriği güvenli bölgeye (safe zone) ölçeklenir.
+     Kalkan içi şeffaftır; arka plan gradyan katmanı içeriden görünür. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <group android:scaleX="0.66" android:scaleY="0.66" android:pivotX="256" android:pivotY="256">
+
+        <path
+            android:pathData="M256 40 L432 104 V268 C432 372 360 440 256 472 C152 440 80 372 80 268 V104 Z"
+            android:strokeWidth="14"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear"
+                    android:startX="96" android:startY="256" android:endX="416" android:endY="256">
+                    <item android:offset="0" android:color="#FF22D3EE" />
+                    <item android:offset="1" android:color="#FF3B82F6" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <path
+            android:pathData="M244 150 h24 a8 8 0 0 1 8 8 v196 a8 8 0 0 1 -8 8 h-24 a8 8 0 0 1 -8 -8 v-196 a8 8 0 0 1 8 -8 z"
+            android:fillColor="#EF4444"
+            android:fillAlpha="0.9" />
+
+        <path
+            android:pathData="M120 200 L208 200 M304 200 L392 200 M120 256 L196 256 M216 256 L296 256 M316 256 L392 256 M120 312 L208 312 M304 312 L392 312"
+            android:strokeWidth="20"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear"
+                    android:startX="96" android:startY="256" android:endX="416" android:endY="256">
+                    <item android:offset="0" android:color="#FF22D3EE" />
+                    <item android:offset="1" android:color="#FF3B82F6" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <path android:pathData="M372 232 L412 256 L372 280 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear"
+                    android:startX="96" android:startY="256" android:endX="416" android:endY="256">
+                    <item android:offset="0" android:color="#FF22D3EE" />
+                    <item android:offset="1" android:color="#FF3B82F6" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+</vector>
