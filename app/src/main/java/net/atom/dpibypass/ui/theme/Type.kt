@@ -6,29 +6,34 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// One UI hissi: büyük, kalın başlıklar + rahat okunur gövde.
+// One UI hissi: büyük, kalın başlıklar + rahat okunur gövde. Premium dokunuş için
+// başlıklarda hafif negatif (sıkı) harf aralığı, etiketlerde hafif pozitif aralık.
 val DpiTypography = Typography(
     displaySmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
         fontSize = 34.sp,
         lineHeight = 40.sp,
+        letterSpacing = (-0.5).sp,
     ),
     headlineLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
         fontSize = 30.sp,
         lineHeight = 36.sp,
+        letterSpacing = (-0.4).sp,
     ),
     headlineSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
+        letterSpacing = (-0.2).sp,
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 17.sp,
+        letterSpacing = 0.sp,
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -46,5 +51,6 @@ val DpiTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
+        letterSpacing = 0.3.sp,
     ),
 )

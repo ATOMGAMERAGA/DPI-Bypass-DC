@@ -92,8 +92,9 @@ fun SettingsScreen(viewModel: AppViewModel) {
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 SwitchRow(
-                    title = "UDP/QUIC'i tünelde bırakma",
-                    subtitle = "Bazı DPI'lar QUIC'i ayrı işler. Açıkça UDP düşürülür (DNS/sesli görüşmeyi etkileyebilir).",
+                    title = "UDP/QUIC'i tünelde düşür",
+                    subtitle = "Kapalı tutun: UDP tünelde kalır ve Discord sesli sohbeti çalışır. " +
+                        "Açarsanız QUIC/UDP düşer — Discord'da sese/karşı tarafın sesine engel olur.",
                     checked = settings.disableQuic,
                     onCheckedChange = viewModel::setDisableQuic,
                 )
