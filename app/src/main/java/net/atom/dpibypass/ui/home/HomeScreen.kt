@@ -3,8 +3,8 @@ package net.atom.dpibypass.ui.home
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,7 +39,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.atom.dpibypass.data.ConnectionState
 import net.atom.dpibypass.ui.AppViewModel
 import net.atom.dpibypass.ui.components.GlassCard
+import net.atom.dpibypass.ui.components.GlassSurface
 import net.atom.dpibypass.ui.components.accentGradientVertical
+import net.atom.dpibypass.ui.theme.AccentBlue
+import net.atom.dpibypass.ui.theme.AccentCyan
 import net.atom.dpibypass.ui.theme.DangerRed
 
 @Composable
@@ -148,61 +151,90 @@ private fun ConnectButton(state: ConnectionState, onClick: () -> Unit) {
     val busy = state == ConnectionState.Connecting || state == ConnectionState.Testing
     val failed = state == ConnectionState.Failed
 
-    // Bağlıyken hafif nabız animasyonu.
-    val transition = rememberInfiniteTransition(label = "pulse")
+    val transition = rememberInfiniteTransition(label = "connect")
+    // Bağlıyken/çalışırken hafif nabız.
     val pulse by transition.animateFloat(
         initialValue = 1f,
         targetValue = if (connected || busy) 1.04f else 1f,
         animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
         label = "pulseScale",
     )
+    // Dış ışıma (glow) yoğunluğu nefes alır — premium canlılık.
+    val glow by transition.animateFloat(
+        initialValue = if (connected || busy) 0.35f else 0.12f,
+        targetValue = if (connected || busy) 0.7f else 0.22f,
+        animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Reverse),
+        label = "glowAlpha",
+    )
 
     val ringColor = when {
         failed -> DangerRed
+        connected -> AccentCyan
         else -> MaterialTheme.colorScheme.outline
     }
 
     Box(
         modifier = Modifier
-            .size(230.dp)
+            .size(260.dp)
             .scale(pulse)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        // Dış glow / halka
+        // Yumuşak dış ışıma halesi
         Box(
             modifier = Modifier
-                .size(230.dp)
-                .border(2.dp, ringColor, CircleShape),
-        )
-        // İç dolgu
-        Box(
-            modifier = Modifier
-                .size(190.dp)
+                .size(260.dp)
                 .background(
-                    if (connected) accentGradientVertical()
-                    else Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
-                        )
+                    Brush.radialGradient(
+                        colors = listOf(
+                            (if (failed) DangerRed else AccentBlue).copy(alpha = glow),
+                            Color.Transparent,
+                        ),
                     ),
                     CircleShape,
                 ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = when {
-                    connected -> "BAĞLI"
-                    busy -> "…"
-                    else -> "BAĞLAN"
-                },
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (connected) Color.White else MaterialTheme.colorScheme.onSurface,
-            )
+        )
+        // İnce halka
+        Box(
+            modifier = Modifier
+                .size(212.dp)
+                .border(2.dp, ringColor, CircleShape),
+        )
+        // İç dolgu: bağlıyken accent gradyan, değilken arkadaki aurora'yı gösteren buzlu cam.
+        if (connected) {
+            Box(
+                modifier = Modifier
+                    .size(188.dp)
+                    .background(accentGradientVertical(), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { ConnectLabel(connected = true, busy = false) }
+        } else {
+            GlassSurface(
+                modifier = Modifier.size(188.dp),
+                shape = CircleShape,
+                blurRadius = 24.dp,
+                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    ConnectLabel(connected = false, busy = busy)
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun ConnectLabel(connected: Boolean, busy: Boolean) {
+    Text(
+        text = when {
+            connected -> "BAĞLI"
+            busy -> "…"
+            else -> "BAĞLAN"
+        },
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold,
+        color = if (connected) Color.White else MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 private fun statusText(state: ConnectionState, label: String?): String = when (state) {

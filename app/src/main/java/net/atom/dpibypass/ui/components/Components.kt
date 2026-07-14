@@ -1,18 +1,18 @@
 package net.atom.dpibypass.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,9 +31,8 @@ fun accentGradient(): Brush = Brush.horizontalGradient(listOf(AccentCyan, Accent
 fun accentGradientVertical(): Brush = Brush.verticalGradient(listOf(AccentCyan, AccentBlue))
 
 /**
- * "Liquid Glass" yüzey: yarı saydam zemin, ince kenar konturu, büyük köşe yarıçapı.
- * Gerçek backdrop-blur Compose'da maliyetli olduğundan, One UI 8.5 buzlu-cam
- * hissi yarı saydamlık + yumuşak kenarlarla taklit edilir.
+ * "Liquid Glass" kart: arkasındaki aurora zeminini gerçek anlamda bulanıklaştıran
+ * (backdrop blur) buzlu-cam yüzey. Bkz. [GlassSurface].
  */
 @Composable
 fun GlassCard(
@@ -43,18 +42,12 @@ fun GlassCard(
     content: @Composable () -> Unit,
 ) {
     val shape = RoundedCornerShape(cornerRadius.dp)
-    Surface(
-        modifier = modifier,
-        shape = shape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        tonalElevation = 2.dp,
-    ) {
+    GlassSurface(modifier = modifier, shape = shape) {
         Box(Modifier.padding(contentPadding)) { content() }
     }
 }
 
-/** Yüzen hap (pill) buton — içeriğin üstünde yüzer. */
+/** Yüzen hap (pill) buton — seçiliyken accent gradyan, değilken buzlu cam. */
 @Composable
 fun PillButton(
     text: String,
@@ -64,30 +57,38 @@ fun PillButton(
     leading: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(50)
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(48.dp),
-        shape = shape,
-        color = if (selected) Color.Transparent else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-    ) {
-        Box(
-            modifier = if (selected) Modifier.background(accentGradient()) else Modifier,
-            contentAlignment = Alignment.Center,
+
+    val label: @Composable () -> Unit = {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                leading?.invoke(this)
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+            leading?.invoke(this)
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+
+    if (selected) {
+        Box(
+            modifier = modifier
+                .height(48.dp)
+                .clip(shape)
+                .background(accentGradient())
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) { label() }
+    } else {
+        GlassSurface(
+            modifier = modifier.height(48.dp).clickable(onClick = onClick),
+            shape = shape,
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { label() }
         }
     }
 }

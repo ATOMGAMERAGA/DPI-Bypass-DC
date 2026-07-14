@@ -12,15 +12,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -32,13 +28,10 @@ import net.atom.dpibypass.data.ThemePref
 import net.atom.dpibypass.ui.apps.AppsScreen
 import net.atom.dpibypass.ui.home.HomeScreen
 import net.atom.dpibypass.ui.mode.ModeScreen
+import net.atom.dpibypass.ui.components.AuroraBackground
 import net.atom.dpibypass.ui.nav.BottomPillBar
 import net.atom.dpibypass.ui.nav.Dest
 import net.atom.dpibypass.ui.settings.SettingsScreen
-import net.atom.dpibypass.ui.theme.BgDarkBottom
-import net.atom.dpibypass.ui.theme.BgDarkTop
-import net.atom.dpibypass.ui.theme.BgLightBottom
-import net.atom.dpibypass.ui.theme.BgLightTop
 import net.atom.dpibypass.ui.theme.DpiBypassTheme
 import net.atom.dpibypass.vpn.ServiceController
 
@@ -118,10 +111,8 @@ private fun AppRoot(
     onDisconnect: () -> Unit,
 ) {
     val navController = rememberNavController()
-    val bg = if (dark) Brush.verticalGradient(listOf(BgDarkTop, BgDarkBottom))
-    else Brush.verticalGradient(listOf(BgLightTop, BgLightBottom))
 
-    Box(Modifier.fillMaxSize().background(bg)) {
+    AuroraBackground(dark = dark, modifier = Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = Dest.Home.route) {
             composable(Dest.Home.route) {
                 HomeScreen(viewModel, onConnect = onConnect, onDisconnect = onDisconnect)

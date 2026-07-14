@@ -7,6 +7,11 @@ val AccentCyan = Color(0xFF22D3EE)
 val AccentBlue = Color(0xFF3B82F6)
 val DangerRed = Color(0xFFEF4444)
 
+// Buzlu-cam (frosted glass) arkasında beliren yumuşak "aurora" ışıklarının
+// renkleri. Cam yüzeyler bu ışık lekelerini bulanıklaştırarak gerçek derinlik verir.
+val AuroraViolet = Color(0xFF8B5CF6)
+val AuroraTeal = Color(0xFF2DD4BF)
+
 // Koyu tema zemin gradyanı (logo bg).
 val BgDarkTop = Color(0xFF0E1726)
 val BgDarkBottom = Color(0xFF15233B)

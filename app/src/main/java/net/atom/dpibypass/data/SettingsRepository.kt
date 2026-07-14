@@ -57,7 +57,9 @@ class SettingsRepository(private val context: Context) {
         autoConnectOnBoot = this[Keys.AUTO_CONNECT_BOOT] ?: false,
         theme = ThemePref.fromName(this[Keys.THEME]),
         haptics = this[Keys.HAPTICS] ?: true,
-        disableQuic = this[Keys.DISABLE_QUIC] ?: true,
+        // Varsayılan KAPALI: UDP tünelde kalır ki DNS ve Discord sesli sohbeti
+        // (UDP/RTP ses akışı) çalışsın. Açılırsa UDP düşer ve sesli sohbet susar.
+        disableQuic = this[Keys.DISABLE_QUIC] ?: false,
         extraBlockedHosts = this[Keys.EXTRA_BLOCKED_HOSTS] ?: "",
     )
 

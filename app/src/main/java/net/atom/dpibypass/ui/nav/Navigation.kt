@@ -1,7 +1,7 @@
 package net.atom.dpibypass.ui.nav
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -13,15 +13,16 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import net.atom.dpibypass.ui.components.GlassSurface
 import net.atom.dpibypass.ui.components.accentGradient
 
 enum class Dest(val route: String, val label: String, val icon: ImageVector) {
@@ -40,13 +41,11 @@ fun BottomPillBar(navController: NavController, modifier: Modifier = Modifier) {
     val backStack by navController.currentBackStackEntryAsState()
     val current = backStack?.destination?.route ?: Dest.Home.route
 
-    Surface(
+    GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        blurRadius = 36.dp,
+        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.60f),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -54,33 +53,30 @@ fun BottomPillBar(navController: NavController, modifier: Modifier = Modifier) {
         ) {
             Dest.entries.forEach { dest ->
                 val selected = current == dest.route
-                Surface(
-                    onClick = {
-                        if (!selected) {
+                val itemShape = RoundedCornerShape(50)
+                val iconModifier = if (selected) {
+                    Modifier
+                        .clip(itemShape)
+                        .background(accentGradient())
+                        .padding(horizontal = 18.dp, vertical = 12.dp)
+                } else {
+                    Modifier
+                        .clip(itemShape)
+                        .clickable {
                             navController.navigate(dest.route) {
                                 popUpTo(Dest.Home.route) { saveState = true }
                                 launchSingleTop = true
                                 restoreState = true
                             }
                         }
-                    },
-                    shape = RoundedCornerShape(50),
-                    color = Color.Transparent,
-                ) {
-                    val iconModifier = if (selected) {
-                        Modifier
-                            .background(accentGradient(), RoundedCornerShape(50))
-                            .padding(horizontal = 18.dp, vertical = 12.dp)
-                    } else {
-                        Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
-                    }
-                    Icon(
-                        imageVector = dest.icon,
-                        contentDescription = dest.label,
-                        tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = iconModifier,
-                    )
+                        .padding(horizontal = 18.dp, vertical = 12.dp)
                 }
+                Icon(
+                    imageVector = dest.icon,
+                    contentDescription = dest.label,
+                    tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = iconModifier,
+                )
             }
         }
     }
