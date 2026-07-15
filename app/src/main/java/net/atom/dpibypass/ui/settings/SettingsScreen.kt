@@ -2,23 +2,17 @@ package net.atom.dpibypass.ui.settings
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.DropdownMenu
@@ -45,28 +39,23 @@ import net.atom.dpibypass.dns.DohProvider
 import net.atom.dpibypass.ui.AppViewModel
 import net.atom.dpibypass.ui.components.GlassCard
 import net.atom.dpibypass.ui.components.PillButton
-import net.atom.dpibypass.ui.components.SectionTitle
+import net.atom.dpibypass.ui.oneui.OneUiDivider
+import net.atom.dpibypass.ui.oneui.OneUiListItem
+import net.atom.dpibypass.ui.oneui.OneUiScreen
+import net.atom.dpibypass.ui.oneui.OneUiSection
+import net.atom.dpibypass.ui.oneui.oneUiSwitchColors
 
 @Composable
 fun SettingsScreen(viewModel: AppViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .padding(top = topInset + 12.dp, bottom = 120.dp),
-    ) {
-        Text("Ayarlar", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(16.dp))
+    OneUiScreen(title = "Ayarlar") {
+        Spacer(Modifier.height(4.dp))
 
         // ---- DNS / DoH ----
-        SectionTitle("DNS (DoH)")
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
+        OneUiSection(title = "DNS (DoH)") {
+            Column(Modifier.padding(20.dp)) {
                 Text(
                     "DoH zorunludur: TT/Superonline/Vodafone düz DNS'i ele geçirir. DoH sunucusuna " +
                         "IP ile bağlanılır, hijack aşılır.",
@@ -88,49 +77,49 @@ fun SettingsScreen(viewModel: AppViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionTitle("Bağlantı")
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                SwitchRow(
-                    title = "UDP/QUIC'i tünelde düşür",
-                    subtitle = "Kapalı tutun: UDP tünelde kalır ve Discord sesli sohbeti çalışır. " +
-                        "Açarsanız QUIC/UDP düşer — Discord'da sese/karşı tarafın sesine engel olur.",
-                    checked = settings.disableQuic,
-                    onCheckedChange = viewModel::setDisableQuic,
-                )
-                Divider()
-                SwitchRow(
-                    title = "Cihaz açılınca otomatik bağlan",
-                    subtitle = "Yeniden başlatmadan sonra tünel otomatik kurulur.",
-                    checked = settings.autoConnectOnBoot,
-                    onCheckedChange = viewModel::setAutoConnectOnBoot,
-                )
-                Divider()
-                SwitchRow(
-                    title = "Haptik / dokunsal geri bildirim",
-                    subtitle = "Bağlanınca hafif titreşim.",
-                    checked = settings.haptics,
-                    onCheckedChange = viewModel::setHaptics,
+        OneUiSection(title = "Bağlantı") {
+            SwitchItem(
+                title = "UDP/QUIC'i tünelde düşür",
+                subtitle = "Kapalı tutun: UDP tünelde kalır ve Discord sesli sohbeti çalışır. " +
+                    "Açarsanız QUIC/UDP düşer — Discord'da sese engel olur.",
+                checked = settings.disableQuic,
+                onCheckedChange = viewModel::setDisableQuic,
+            )
+            OneUiDivider()
+            SwitchItem(
+                title = "Cihaz açılınca otomatik bağlan",
+                subtitle = "Yeniden başlatmadan sonra tünel otomatik kurulur.",
+                checked = settings.autoConnectOnBoot,
+                onCheckedChange = viewModel::setAutoConnectOnBoot,
+            )
+            OneUiDivider()
+            SwitchItem(
+                title = "Haptik / dokunsal geri bildirim",
+                subtitle = "Bağlanınca hafif titreşim.",
+                checked = settings.haptics,
+                onCheckedChange = viewModel::setHaptics,
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        OneUiSection(title = "Engellenen ek domainler") {
+            Column(Modifier.padding(20.dp)) {
+                OutlinedTextField(
+                    value = settings.extraBlockedHosts,
+                    onValueChange = viewModel::setExtraBlockedHosts,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Virgülle ayırın") },
+                    placeholder = { Text("discord.com, media.discordapp.net") },
                 )
             }
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionTitle("Engellenen ek domainler")
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = settings.extraBlockedHosts,
-                onValueChange = viewModel::setExtraBlockedHosts,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Virgülle ayırın") },
-                placeholder = { Text("discord.com, media.discordapp.net") },
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-        SectionTitle("Görünüm")
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OneUiSection(title = "Görünüm") {
+            Row(
+                modifier = Modifier.padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 PillButton("Sistem", { viewModel.setTheme(ThemePref.System) },
                     selected = settings.theme == ThemePref.System, modifier = Modifier.weight(1f))
                 PillButton("Açık", { viewModel.setTheme(ThemePref.Light) },
@@ -141,9 +130,8 @@ fun SettingsScreen(viewModel: AppViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionTitle("Pil")
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
+        OneUiSection(title = "Pil") {
+            Column(Modifier.padding(20.dp)) {
                 Text(
                     "Arka planda kesintisiz çalışmak için pil optimizasyonunu kapatın. Samsung " +
                         "cihazlarda ayrıca Ayarlar → Piller → Arka plan kullanım limitleri'nden " +
@@ -170,9 +158,8 @@ fun SettingsScreen(viewModel: AppViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionTitle("Hakkında")
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
+        OneUiSection(title = "Hakkında") {
+            Column(Modifier.padding(20.dp)) {
                 Text("DPI Bypass", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 Text("Sürüm ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
@@ -201,7 +188,7 @@ private fun DohDropdown(selected: DohProvider, onSelect: (DohProvider) -> Unit) 
     Box {
         GlassCard(
             modifier = Modifier.fillMaxWidth().clickable { expanded = true },
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(selected.displayName, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
@@ -217,20 +204,12 @@ private fun DohDropdown(selected: DohProvider, onSelect: (DohProvider) -> Unit) 
 }
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-@Composable
-private fun Divider() {
-    androidx.compose.material3.HorizontalDivider(
-        color = MaterialTheme.colorScheme.outline,
-        modifier = Modifier.padding(vertical = 6.dp),
+private fun SwitchItem(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    OneUiListItem(
+        title = title,
+        subtitle = subtitle,
+        trailing = {
+            Switch(checked = checked, onCheckedChange = onCheckedChange, colors = oneUiSwitchColors())
+        },
     )
 }

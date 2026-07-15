@@ -7,19 +7,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -53,6 +47,8 @@ import net.atom.dpibypass.ui.components.GlassCard
 import net.atom.dpibypass.ui.components.PillButton
 import net.atom.dpibypass.ui.components.SectionTitle
 import net.atom.dpibypass.ui.components.accentGradient
+import net.atom.dpibypass.ui.oneui.OneUiScreen
+import net.atom.dpibypass.ui.oneui.oneUiSwitchColors
 
 @Composable
 fun ModeScreen(viewModel: AppViewModel) {
@@ -60,21 +56,9 @@ fun ModeScreen(viewModel: AppViewModel) {
     val results by viewModel.testResults.collectAsStateWithLifecycle()
     val testing by viewModel.testing.collectAsStateWithLifecycle()
     val winner by viewModel.testWinner.collectAsStateWithLifecycle()
-    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .padding(top = topInset + 12.dp, bottom = 120.dp),
-    ) {
-        Text(
-            text = "Mod",
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(Modifier.height(16.dp))
+    OneUiScreen(title = "Mod") {
+        Spacer(Modifier.height(4.dp))
 
         // Otomatik / Manuel seçim
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -121,9 +105,9 @@ fun ModeScreen(viewModel: AppViewModel) {
         } else {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Otomatik mod: uygulama, ISS'nizi tespit edip her stratejiyi tek tek " +
-                        "test eder ve en düşük ping'li çalışanı seçer. Bağlanınca otomatik yapılır; " +
-                        "aşağıdan şimdi de test edebilirsiniz.",
+                    "Otomatik mod: uygulama, ISS'nizi tespit edip stratejileri hızlıca test eder ve " +
+                        "çalışan en düşük ping'liyi seçer. Bağlanınca otomatik yapılır; aşağıdan " +
+                        "şimdi de test edebilirsiniz.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -231,7 +215,7 @@ private fun AdvancedArgsCard(
                     Text("Gelişmiş (serbest ByeDPI argümanı)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                     Text("Açıkken preset yerine bu argümanlar kullanılır.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Switch(checked = enabled, onCheckedChange = onEnabledChange)
+                Switch(checked = enabled, onCheckedChange = onEnabledChange, colors = oneUiSwitchColors())
             }
             if (enabled) {
                 Spacer(Modifier.height(12.dp))

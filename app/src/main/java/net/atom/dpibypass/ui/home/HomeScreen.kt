@@ -8,21 +8,18 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,9 +35,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.atom.dpibypass.data.ConnectionState
 import net.atom.dpibypass.ui.AppViewModel
-import net.atom.dpibypass.ui.components.GlassCard
 import net.atom.dpibypass.ui.components.GlassSurface
 import net.atom.dpibypass.ui.components.accentGradientVertical
+import net.atom.dpibypass.ui.oneui.OneUiListItem
+import net.atom.dpibypass.ui.oneui.OneUiScaffold
+import net.atom.dpibypass.ui.oneui.OneUiSection
 import net.atom.dpibypass.ui.theme.AccentBlue
 import net.atom.dpibypass.ui.theme.AccentCyan
 import net.atom.dpibypass.ui.theme.DangerRed
@@ -54,73 +53,58 @@ fun HomeScreen(
     val state by viewModel.connectionState.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp)
-            .padding(top = topInset + 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Büyük başlık (One UI large title)
-        Text(
-            text = "DPI Bypass",
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Kişisel, yasal erişim aracı",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-        )
+    OneUiScaffold(title = "DPI Bypass") { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(innerPadding)
+                .padding(horizontal = 18.dp)
+                .padding(bottom = 120.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Kişisel, yasal erişim aracı",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
-        Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
-        // Aktif ağ kartı
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = if (settings.operationMode.name == "Auto") "Otomatik mod" else "Manuel mod",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = profile?.ispName ?: settings.selectedIsp.displayName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                ModeBadge(auto = settings.operationMode.name == "Auto")
+            // Aktif ağ kartı (One UI gruplanmış bölüm)
+            OneUiSection(modifier = Modifier.fillMaxWidth()) {
+                OneUiListItem(
+                    title = if (settings.operationMode.name == "Auto") "Otomatik mod" else "Manuel mod",
+                    subtitle = profile?.ispName ?: settings.selectedIsp.displayName,
+                    trailing = { ModeBadge(auto = settings.operationMode.name == "Auto") },
+                )
             }
+
+            Spacer(Modifier.height(40.dp))
+
+            // Büyük yuvarlak bağlan/kes butonu
+            ConnectButton(
+                state = state,
+                onClick = {
+                    if (state == ConnectionState.Connected ||
+                        state == ConnectionState.Connecting ||
+                        state == ConnectionState.Testing
+                    ) onDisconnect() else onConnect()
+                },
+            )
+
+            Spacer(Modifier.height(28.dp))
+
+            Text(
+                text = statusText(state, profile?.shortLabel()),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-
-        Spacer(Modifier.height(40.dp))
-
-        // Büyük yuvarlak bağlan/kes butonu
-        ConnectButton(
-            state = state,
-            onClick = {
-                if (state == ConnectionState.Connected ||
-                    state == ConnectionState.Connecting ||
-                    state == ConnectionState.Testing
-                ) onDisconnect() else onConnect()
-            },
-        )
-
-        Spacer(Modifier.height(28.dp))
-
-        Text(
-            text = statusText(state, profile?.shortLabel()),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 

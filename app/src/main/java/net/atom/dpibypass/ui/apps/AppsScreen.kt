@@ -2,15 +2,13 @@ package net.atom.dpibypass.ui.apps
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
@@ -33,6 +31,7 @@ import net.atom.dpibypass.ui.AppViewModel
 import net.atom.dpibypass.ui.components.GlassCard
 import net.atom.dpibypass.ui.components.PillButton
 import net.atom.dpibypass.ui.components.SectionTitle
+import net.atom.dpibypass.ui.oneui.OneUiScaffold
 
 private val FAVORITES = setOf(
     "com.discord", "com.android.chrome", "org.mozilla.firefox",
@@ -44,7 +43,6 @@ fun AppsScreen(viewModel: AppViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val apps by viewModel.apps.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
-    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     LaunchedEffect(Unit) { viewModel.loadInstalledApps() }
 
@@ -57,72 +55,68 @@ fun AppsScreen(viewModel: AppViewModel) {
         base.sortedByDescending { it.packageName in FAVORITES }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp)
-            .padding(top = topInset + 12.dp),
-    ) {
-        Text(
-            "Uygulamalar",
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Hangi uygulamaların tünelden geçeceğini seçin (split tunneling).",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(16.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PillButton("Tümü", { viewModel.setAppFilterMode(AppFilterMode.All) },
-                selected = settings.appFilterMode == AppFilterMode.All, modifier = Modifier.weight(1f))
-            PillButton("Seçili", { viewModel.setAppFilterMode(AppFilterMode.Include) },
-                selected = settings.appFilterMode == AppFilterMode.Include, modifier = Modifier.weight(1f))
-            PillButton("Hariç", { viewModel.setAppFilterMode(AppFilterMode.Exclude) },
-                selected = settings.appFilterMode == AppFilterMode.Exclude, modifier = Modifier.weight(1f))
-        }
-
-        Spacer(Modifier.height(12.dp))
-        if (listEnabled) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Uygulama ara") },
-                singleLine = true,
+    OneUiScaffold(title = "Uygulamalar") { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 18.dp),
+        ) {
+            Text(
+                "Hangi uygulamaların tünelden geçeceğini seçin (split tunneling).",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(8.dp))
-            SectionTitle(
-                when (settings.appFilterMode) {
-                    AppFilterMode.Include -> "Yalnızca işaretli uygulamalar tünelde"
-                    AppFilterMode.Exclude -> "İşaretli uygulamalar tünel DIŞINDA"
-                    AppFilterMode.All -> ""
+            Spacer(Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PillButton("Tümü", { viewModel.setAppFilterMode(AppFilterMode.All) },
+                    selected = settings.appFilterMode == AppFilterMode.All, modifier = Modifier.weight(1f))
+                PillButton("Seçili", { viewModel.setAppFilterMode(AppFilterMode.Include) },
+                    selected = settings.appFilterMode == AppFilterMode.Include, modifier = Modifier.weight(1f))
+                PillButton("Hariç", { viewModel.setAppFilterMode(AppFilterMode.Exclude) },
+                    selected = settings.appFilterMode == AppFilterMode.Exclude, modifier = Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(12.dp))
+            if (listEnabled) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Uygulama ara") },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(8.dp))
+                SectionTitle(
+                    when (settings.appFilterMode) {
+                        AppFilterMode.Include -> "Yalnızca işaretli uygulamalar tünelde"
+                        AppFilterMode.Exclude -> "İşaretli uygulamalar tünel DIŞINDA"
+                        AppFilterMode.All -> ""
+                    }
+                )
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = PaddingValues(bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(filtered, key = { it.packageName }) { app ->
+                        AppRow(
+                            app = app,
+                            checked = app.packageName in settings.selectedApps,
+                            onCheckedChange = { viewModel.toggleApp(app.packageName, it) },
+                        )
+                    }
                 }
-            )
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(filtered, key = { it.packageName }) { app ->
-                    AppRow(
-                        app = app,
-                        checked = app.packageName in settings.selectedApps,
-                        onCheckedChange = { viewModel.toggleApp(app.packageName, it) },
+            } else {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Tüm uygulamalar tünelden geçiyor. Belirli uygulamaları seçmek için " +
+                            "\"Seçili\" veya \"Hariç\" moduna geçin.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-        } else {
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "Tüm uygulamalar tünelden geçiyor. Belirli uygulamaları seçmek için " +
-                        "\"Seçili\" veya \"Hariç\" moduna geçin.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
@@ -132,7 +126,7 @@ fun AppsScreen(viewModel: AppViewModel) {
 private fun AppRow(app: AppEntry, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
