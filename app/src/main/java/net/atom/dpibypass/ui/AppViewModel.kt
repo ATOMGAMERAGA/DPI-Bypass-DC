@@ -102,7 +102,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val mirror = viewModelScope.launch {
                     tester.results.collect { _testResults.value = it }
                 }
-                val best = tester.run(ordered, hosts)
+                // Tanı ekranı: erken çıkma yok — kullanıcıya tüm preset sonuçları göster.
+                val best = tester.run(ordered, hosts, stopOnFirstFullSuccess = false)
                 mirror.cancel()
                 if (best != null) {
                     repo.setSelectedStrategy(best.first.id)

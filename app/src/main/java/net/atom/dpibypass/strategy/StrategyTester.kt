@@ -4,6 +4,9 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,24 +48,34 @@ class StrategyTester(
     /**
      * @param strategies  test edilecek stratejiler (ISS'e göre sıralı verilebilir)
      * @param blockedHosts engellenen hedef domainler (ör. discord.com ...)
+     * @param stopOnFirstFullSuccess  bağlanma hızını artırmak için ilk "tüm
+     *   hedeflerde çalışan" stratejide dur (varsayılan). Sıralama en olası
+     *   çalışanı öne aldığından bağlanma çoğu zaman ilk 1-2 denemede tamamlanır.
+     *   Tanı ekranındaki "hepsini test et" için false verin.
      * @return en iyi çalışan strateji ve gecikmesi; hiçbiri çalışmazsa null
      */
     suspend fun run(
         strategies: List<Strategy>,
         blockedHosts: List<String>,
+        stopOnFirstFullSuccess: Boolean = true,
     ): Pair<Strategy, Long?>? = withContext(Dispatchers.IO) {
         _results.value = strategies.map {
             StrategyTestResult(it, StrategyTestResult.State.Pending, totalTargets = blockedHosts.size)
         }
 
-        // Hedefleri bir kez DoH ile çöz (strateji testinden bağımsız).
-        val resolved: Map<String, String> = blockedHosts.mapNotNull { host ->
-            val ip = doh.resolve(host).firstOrNull()
-            if (ip == null) {
-                Log.w(TAG, "DoH ile çözülemedi: $host")
-                null
-            } else host to ip
-        }.toMap()
+        // Hedefleri DoH ile PARALEL çöz (birbirinden bağımsız ağ çağrıları) —
+        // sıralı çözümdeki gecikme toplanmaz, en yavaş sorgu kadar sürer.
+        val resolved: Map<String, String> = coroutineScope {
+            blockedHosts.map { host ->
+                async {
+                    val ip = doh.resolve(host).firstOrNull()
+                    if (ip == null) {
+                        Log.w(TAG, "DoH ile çözülemedi: $host")
+                        null
+                    } else host to ip
+                }
+            }.awaitAll().filterNotNull().toMap()
+        }
 
         if (resolved.isEmpty()) {
             Log.w(TAG, "Hiçbir hedef DoH ile çözülemedi — test iptal")
@@ -87,6 +100,12 @@ class StrategyTester(
 
             if (result.successCount > 0 && isBetter(result, best)) {
                 best = result.copy(strategy = strategy)
+            }
+
+            // Erken çıkış: bir strateji TÜM hedeflerde çalışıyorsa daha fazla
+            // preset denemeye gerek yok — bağlanma anında tamamlanır.
+            if (stopOnFirstFullSuccess && result.successCount >= resolved.size) {
+                break
             }
         }
 
@@ -121,15 +140,15 @@ class StrategyTester(
                 return StrategyTestResult(strategy, StrategyTestResult.State.Failed)
             }
 
-            var success = 0
-            val latencies = ArrayList<Long>()
-            for ((host, ip) in resolved) {
-                val latency = Socks5TestClient.testTls(port, ip, host)
-                if (latency != null) {
-                    success++
-                    latencies.add(latency)
-                }
-            }
+            // Hedefleri tek ByeDPI örneği üzerinden PARALEL test et (SOCKS5 eşzamanlı
+            // bağlantıları destekler). Başarısız bir strateji artık ~3s'de elenir,
+            // 3 hedefi sıralı deneyen ~9s yerine.
+            val latencies = coroutineScope {
+                resolved.map { (host, ip) ->
+                    async(Dispatchers.IO) { Socks5TestClient.testTls(port, ip, host) }
+                }.awaitAll()
+            }.filterNotNull()
+            val success = latencies.size
             StrategyTestResult(
                 strategy = strategy,
                 state = if (success > 0) StrategyTestResult.State.Success else StrategyTestResult.State.Failed,
