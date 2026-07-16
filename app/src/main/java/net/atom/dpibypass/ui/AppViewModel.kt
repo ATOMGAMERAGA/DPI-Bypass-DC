@@ -77,6 +77,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setHaptics(v: Boolean) = launch { repo.setHaptics(v) }
     fun setDisableQuic(v: Boolean) = launch { repo.setDisableQuic(v) }
     fun setExtraBlockedHosts(v: String) = launch { repo.setExtraBlockedHosts(v) }
+    fun setOnboardingDone(v: Boolean) = launch { repo.setOnboardingDone(v) }
+    fun setSamsungVpnIndicator(v: Boolean) = launch { repo.setSamsungVpnIndicator(v) }
+
+    /**
+     * "Sadece Discord" modu: uygulama yalnızca Discord'un trafiğini tünelden
+     * geçirir (split tunneling → Include, seçili = Discord) ve en iyi stratejiyi
+     * otomatik bulur. Kurulum sihirbazından çağrılır.
+     */
+    fun enableDiscordOnlyMode() = launch {
+        repo.setOperationMode(OperationMode.Auto)
+        repo.setAppFilterMode(AppFilterMode.Include)
+        repo.setSelectedApps(setOf(DISCORD_PACKAGE))
+    }
 
     /**
      * Canlı strateji testi — VPN kurmadan, yerel SOCKS + DoH ile her preset'i tek
@@ -145,5 +158,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }
+    }
+
+    companion object {
+        const val DISCORD_PACKAGE = "com.discord"
     }
 }

@@ -42,6 +42,7 @@ object NotificationUtils {
         title: String,
         content: String,
         connected: Boolean,
+        persistent: Boolean = false,
     ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context, 0,
@@ -62,7 +63,8 @@ object NotificationUtils {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(content)
-            .setOngoing(connected)
+            // Samsung durum göstergesi açıkken tünel süresince kalıcı (kapatılamaz) tut.
+            .setOngoing(connected || persistent)
             .setSilent(true)
             .setContentIntent(contentIntent)
             .addAction(0, actionLabel, actionIntent)

@@ -167,8 +167,10 @@ fun AuroraBackground(
 fun GlassSurface(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(28.dp),
-    blurRadius: Dp = 32.dp,
-    tint: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.52f),
+    blurRadius: Dp = 34.dp,
+    // Daha belirgin "buzlu cam" hissi: yüzey rengi arkadaki aurora'yı yeterince
+    // örter ama yine de içinden hafif sızdırır (backdrop blur'la birlikte "dock" dokusu).
+    tint: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.70f),
     content: @Composable BoxScope.() -> Unit,
 ) {
     val scene = LocalGlassScene.current
