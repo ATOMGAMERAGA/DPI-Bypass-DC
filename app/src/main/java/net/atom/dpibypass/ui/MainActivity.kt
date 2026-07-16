@@ -32,8 +32,11 @@ import net.atom.dpibypass.ui.mode.ModeScreen
 import net.atom.dpibypass.ui.components.AuroraBackground
 import net.atom.dpibypass.ui.nav.BottomPillBar
 import net.atom.dpibypass.ui.nav.Dest
+import net.atom.dpibypass.ui.onboarding.OnboardingOverlay
 import net.atom.dpibypass.ui.settings.SettingsScreen
 import net.atom.dpibypass.ui.theme.DpiBypassTheme
+import net.atom.dpibypass.util.DeviceInfo
+import net.atom.dpibypass.util.QuickTile
 import net.atom.dpibypass.vpn.ServiceController
 
 class MainActivity : ComponentActivity() {
@@ -65,6 +68,8 @@ class MainActivity : ComponentActivity() {
                     dark = isDark(settings.theme),
                     onConnect = ::connect,
                     onDisconnect = ::disconnect,
+                    onRequestTile = ::requestQuickTile,
+                    discordInstalled = isDiscordInstalled(),
                 )
             }
         }
@@ -82,6 +87,19 @@ class MainActivity : ComponentActivity() {
 
     private fun disconnect() {
         ServiceController.stop(this)
+    }
+
+    /** Hızlı Panel kısayolunu (Android 13+ sistem onayıyla) ekle. */
+    private fun requestQuickTile() {
+        QuickTile.request(this)
+    }
+
+    /** Discord kurulu mu? Kurulum sihirbazının Discord adımını tetikler. */
+    private fun isDiscordInstalled(): Boolean = try {
+        packageManager.getPackageInfo(AppViewModel.DISCORD_PACKAGE, 0)
+        true
+    } catch (e: PackageManager.NameNotFoundException) {
+        false
     }
 
     private fun maybeRequestNotificationPermission() {
@@ -110,8 +128,11 @@ private fun AppRoot(
     dark: Boolean,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    onRequestTile: () -> Unit,
+    discordInstalled: Boolean,
 ) {
     val navController = rememberNavController()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     AuroraBackground(dark = dark, modifier = Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = Dest.Home.route) {
@@ -120,7 +141,7 @@ private fun AppRoot(
             }
             composable(Dest.Mode.route) { ModeScreen(viewModel) }
             composable(Dest.Apps.route) { AppsScreen(viewModel) }
-            composable(Dest.Settings.route) { SettingsScreen(viewModel) }
+            composable(Dest.Settings.route) { SettingsScreen(viewModel, onRequestTile = onRequestTile) }
         }
         BottomPillBar(
             navController = navController,
@@ -128,5 +149,17 @@ private fun AppRoot(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 28.dp),
         )
+
+        // İlk açılış kurulum sihirbazı — zeminin üstüne biner.
+        if (!settings.onboardingDone) {
+            OnboardingOverlay(
+                discordInstalled = discordInstalled,
+                brandName = DeviceInfo.brandName(),
+                quickPanelName = DeviceInfo.quickPanelName(),
+                onEnableDiscordMode = viewModel::enableDiscordOnlyMode,
+                onRequestTile = onRequestTile,
+                onFinish = { viewModel.setOnboardingDone(true) },
+            )
+        }
     }
 }

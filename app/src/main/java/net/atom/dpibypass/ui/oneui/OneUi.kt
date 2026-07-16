@@ -1,6 +1,7 @@
 package net.atom.dpibypass.ui.oneui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -25,10 +27,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import net.atom.dpibypass.ui.components.GlassCard
+import net.atom.dpibypass.ui.components.GlassSurface
 
 // ---------------------------------------------------------------------------
 // One UI 8.5 tasarım bileşenleri.
@@ -63,13 +68,7 @@ fun OneUiScaffold(
         containerColor = Color.Transparent,
         topBar = {
             LargeTopAppBar(
-                title = {
-                    Text(
-                        text = title,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
+                title = { CollapsingTitlePill(title, scrollBehavior.state.collapsedFraction) },
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.largeTopAppBarColors(
                     containerColor = Color.Transparent,
@@ -80,6 +79,37 @@ fun OneUiScaffold(
         },
         content = content,
     )
+}
+
+/**
+ * Daralan başlık. Kaydırıp başlık küçüldükçe ([collapsedFraction] 0→1) yazının
+ * arkasına buzlu cam (backdrop blur) bir hap (pill) yumuşakça belirir — yazı
+ * kaydırma ile beraber gelirken arkasında küçük, premium bir detay oluşur.
+ */
+@Composable
+private fun CollapsingTitlePill(title: String, collapsedFraction: Float) {
+    val pill = collapsedFraction.coerceIn(0f, 1f)
+    Box(contentAlignment = Alignment.CenterStart) {
+        if (pill > 0.02f) {
+            GlassSurface(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer { alpha = pill },
+                shape = RoundedCornerShape(50),
+                blurRadius = 28.dp,
+                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+            ) {}
+        }
+        Text(
+            text = title,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(
+                horizontal = lerp(0.dp, 18.dp, pill),
+                vertical = lerp(0.dp, 7.dp, pill),
+            ),
+        )
+    }
 }
 
 /**
@@ -99,7 +129,7 @@ fun OneUiScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(innerPadding)
                 .padding(horizontal = 18.dp)
-                .padding(bottom = 120.dp),
+                .padding(bottom = 100.dp),
             content = content,
         )
     }

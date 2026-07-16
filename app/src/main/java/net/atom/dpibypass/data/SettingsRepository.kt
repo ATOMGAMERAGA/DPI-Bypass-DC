@@ -34,6 +34,11 @@ data class Settings(
     // DNS ve sesli görüşme çalışsın. Bkz. Bölüm 14.
     val disableQuic: Boolean = false,
     val extraBlockedHosts: String = "",
+    // Açılıştaki kurulum sihirbazı tamamlandı mı? (false → ilk açılış akışı gösterilir.)
+    val onboardingDone: Boolean = false,
+    // Samsung + tuşlu navbar cihazlarda: tünel açıkken kalıcı VPN durum göstergesi
+    // (bildirim kalıcı/kapatılamaz). Yalnızca Samsung'da ayarlarda görünür.
+    val samsungVpnIndicator: Boolean = false,
 ) {
     /** Etkin DoH endpoint URL'i (özel varsa o, yoksa seçili sağlayıcı). */
     fun effectiveDohUrl(): String =
@@ -61,6 +66,8 @@ class SettingsRepository(private val context: Context) {
         // (UDP/RTP ses akışı) çalışsın. Açılırsa UDP düşer ve sesli sohbet susar.
         disableQuic = this[Keys.DISABLE_QUIC] ?: false,
         extraBlockedHosts = this[Keys.EXTRA_BLOCKED_HOSTS] ?: "",
+        onboardingDone = this[Keys.ONBOARDING_DONE] ?: false,
+        samsungVpnIndicator = this[Keys.SAMSUNG_VPN_INDICATOR] ?: false,
     )
 
     suspend fun setOperationMode(mode: OperationMode) = put(Keys.OPERATION_MODE, mode.name)
@@ -78,6 +85,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun setHaptics(v: Boolean) = put(Keys.HAPTICS, v)
     suspend fun setDisableQuic(v: Boolean) = put(Keys.DISABLE_QUIC, v)
     suspend fun setExtraBlockedHosts(v: String) = put(Keys.EXTRA_BLOCKED_HOSTS, v)
+    suspend fun setOnboardingDone(v: Boolean) = put(Keys.ONBOARDING_DONE, v)
+    suspend fun setSamsungVpnIndicator(v: Boolean) = put(Keys.SAMSUNG_VPN_INDICATOR, v)
 
     /**
      * Ağ profili: bir ağ anahtarına (SSID/operatör) en iyi stratejiyi bağlar; aynı
@@ -118,6 +127,8 @@ class SettingsRepository(private val context: Context) {
         val HAPTICS = booleanPreferencesKey("haptics")
         val DISABLE_QUIC = booleanPreferencesKey("disable_quic")
         val EXTRA_BLOCKED_HOSTS = stringPreferencesKey("extra_blocked_hosts")
+        val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        val SAMSUNG_VPN_INDICATOR = booleanPreferencesKey("samsung_vpn_indicator")
         val NETWORK_PROFILES = stringPreferencesKey("network_profiles")
     }
 }

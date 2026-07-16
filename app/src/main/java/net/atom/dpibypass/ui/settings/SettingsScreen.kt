@@ -44,14 +44,50 @@ import net.atom.dpibypass.ui.oneui.OneUiListItem
 import net.atom.dpibypass.ui.oneui.OneUiScreen
 import net.atom.dpibypass.ui.oneui.OneUiSection
 import net.atom.dpibypass.ui.oneui.oneUiSwitchColors
+import net.atom.dpibypass.util.DeviceInfo
 
 @Composable
-fun SettingsScreen(viewModel: AppViewModel) {
+fun SettingsScreen(viewModel: AppViewModel, onRequestTile: () -> Unit = {}) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     OneUiScreen(title = "Ayarlar") {
         Spacer(Modifier.height(4.dp))
+
+        // ---- Hızlı erişim (Hızlı Panel kısayolu) ----
+        OneUiSection(title = "Hızlı erişim") {
+            Column(Modifier.padding(20.dp)) {
+                Text(
+                    "${DeviceInfo.quickPanelName()}'e (WiFi/Bluetooth kutucuklarının olduğu yer) " +
+                        "tek dokunuşla aç/kapat kısayolu ekleyin.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                PillButton(
+                    "${DeviceInfo.quickPanelName()}'e kısayol ekle",
+                    onClick = onRequestTile,
+                    selected = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        // ---- Samsung: navbar VPN durum göstergesi ----
+        if (DeviceInfo.isSamsung() && DeviceInfo.hasNavigationBar(context)) {
+            Spacer(Modifier.height(16.dp))
+            OneUiSection(title = "Samsung durum göstergesi") {
+                SwitchItem(
+                    title = "VPN durumunu kalıcı göster",
+                    subtitle = "Tünel açıkken Samsung sistem çubuğundaki VPN anahtar simgesini ve " +
+                        "bildirimini kalıcı tutar; \"kapat\" için tek dokunuşla erişilir. " +
+                        "(Not: Android, üçüncü taraf uygulamaların navigasyon çubuğuna buton " +
+                        "eklemesine izin vermez; en yakın desteklenen gösterge budur.)",
+                    checked = settings.samsungVpnIndicator,
+                    onCheckedChange = viewModel::setSamsungVpnIndicator,
+                )
+            }
+        }
 
         // ---- DNS / DoH ----
         OneUiSection(title = "DNS (DoH)") {
@@ -176,6 +212,13 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         "(heiher). Referans mimari: ByeDPIAndroid (dovecoteescapee).",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(14.dp))
+                PillButton(
+                    "Kurulum sihirbazını tekrar aç",
+                    onClick = { viewModel.setOnboardingDone(false) },
+                    selected = false,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }

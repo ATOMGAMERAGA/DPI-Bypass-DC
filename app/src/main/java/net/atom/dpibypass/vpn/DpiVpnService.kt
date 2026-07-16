@@ -60,6 +60,9 @@ class DpiVpnService : LifecycleVpnService() {
     private var currentArgs: Array<String> = emptyArray()
     private var currentProfile: ActiveProfile? = null
     private var currentDohUrl: String = net.atom.dpibypass.dns.DohProvider.Cloudflare.url
+    // Samsung kalıcı VPN durum göstergesi (ayarlardan). Tünel açıkken bildirim
+    // kapatılamaz hale gelir; sistem çubuğundaki VPN göstergesi görünür kalır.
+    private var persistentIndicator = false
 
     override fun onCreate() {
         super.onCreate()
@@ -94,6 +97,7 @@ class DpiVpnService : LifecycleVpnService() {
 
         try {
             val settings = settingsRepo.settings.first()
+            persistentIndicator = settings.samsungVpnIndicator
             currentDohUrl = settings.effectiveDohUrl()
             val (strategy, latency) = resolveStrategy(settings)
             val ispName = resolveIspName(settings)
@@ -377,6 +381,7 @@ class DpiVpnService : LifecycleVpnService() {
             getString(R.string.app_name),
             content,
             connected,
+            persistent = persistentIndicator,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(

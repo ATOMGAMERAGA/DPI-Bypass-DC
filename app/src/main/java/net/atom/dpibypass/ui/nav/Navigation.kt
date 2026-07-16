@@ -44,8 +44,8 @@ fun BottomPillBar(navController: NavController, modifier: Modifier = Modifier) {
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(50),
-        blurRadius = 36.dp,
-        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.60f),
+        blurRadius = 40.dp,
+        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
