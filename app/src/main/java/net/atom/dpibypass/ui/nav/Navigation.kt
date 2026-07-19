@@ -1,5 +1,7 @@
 package net.atom.dpibypass.ui.nav
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,8 +46,8 @@ fun BottomPillBar(navController: NavController, modifier: Modifier = Modifier) {
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(50),
-        blurRadius = 40.dp,
-        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
+        blurRadius = 44.dp,
+        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -71,10 +73,15 @@ fun BottomPillBar(navController: NavController, modifier: Modifier = Modifier) {
                         }
                         .padding(horizontal = 18.dp, vertical = 12.dp)
                 }
+                val iconTint by animateColorAsState(
+                    targetValue = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(220),
+                    label = "navTint",
+                )
                 Icon(
                     imageVector = dest.icon,
                     contentDescription = dest.label,
-                    tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = iconTint,
                     modifier = iconModifier,
                 )
             }

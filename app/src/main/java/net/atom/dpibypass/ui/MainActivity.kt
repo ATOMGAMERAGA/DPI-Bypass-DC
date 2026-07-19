@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -147,7 +148,10 @@ private fun AppRoot(
             navController = navController,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 28.dp),
+                // Jest çubuğu / navigasyon çubuğu ne olursa olsun dock her cihazda
+                // güvenli alanın üstünde yüzsün (responsive).
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp),
         )
 
         // İlk açılış kurulum sihirbazı — zeminin üstüne biner.

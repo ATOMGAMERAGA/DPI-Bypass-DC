@@ -16,6 +16,10 @@ object NotificationUtils {
     const val CHANNEL_ID = "dpi_vpn_status"
     const val NOTIFICATION_ID = 1
 
+    // One UI mavisi — bildirim "colorized" olduğunda vurgu rengi olarak kullanılır ve
+    // Samsung Now Bar / kilit ekranı canlı göstergesinde marka rengini verir.
+    private const val ACCENT_COLOR = 0xFF0072F5.toInt()
+
     fun registerChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -28,6 +32,9 @@ object NotificationUtils {
                 enableLights(false)
                 enableVibration(false)
                 setShowBadge(false)
+                // Kilit ekranında tam görünür olmalı ki Samsung Now Bar canlı göstergeyi
+                // yakalayabilsin (gizli olursa Now Bar'a düşmez).
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             manager.createNotificationChannel(channel)
         }
@@ -66,9 +73,18 @@ object NotificationUtils {
             // Samsung durum göstergesi açıkken tünel süresince kalıcı (kapatılamaz) tut.
             .setOngoing(connected || persistent)
             .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
             .setContentIntent(contentIntent)
             .addAction(0, actionLabel, actionIntent)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            // Samsung Now Bar / kilit ekranı canlı göstergesi, "status" kategorili,
+            // kilit ekranında görünür (PUBLIC) ve renklendirilmiş (colorized) sürekli
+            // bildirimleri yakalar. Bu üçlü olmadan tünel göstergesi Now Bar'a düşmez.
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColorized(true)
+            .setColor(ACCENT_COLOR)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 }
