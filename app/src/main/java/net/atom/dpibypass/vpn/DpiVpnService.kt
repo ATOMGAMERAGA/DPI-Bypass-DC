@@ -63,6 +63,9 @@ class DpiVpnService : LifecycleVpnService() {
     // Samsung kalıcı VPN durum göstergesi (ayarlardan). Tünel açıkken bildirim
     // kapatılamaz hale gelir; sistem çubuğundaki VPN göstergesi görünür kalır.
     private var persistentIndicator = false
+    // Bağlantının kurulduğu an — Now Bar / kilit ekranı bildirimindeki canlı "bağlı
+    // süresi" kronometresi buradan sayar.
+    private var connectedSince = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -111,6 +114,7 @@ class DpiVpnService : LifecycleVpnService() {
             }
 
             VpnState.update(ConnectionState.Connected, currentProfile)
+            connectedSince = System.currentTimeMillis()
             goForeground(
                 getString(R.string.notification_connected, currentProfile!!.shortLabel()),
                 connected = true,
@@ -382,6 +386,7 @@ class DpiVpnService : LifecycleVpnService() {
             content,
             connected,
             persistent = persistentIndicator,
+            connectedSinceMs = if (connectedSince > 0L) connectedSince else System.currentTimeMillis(),
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
