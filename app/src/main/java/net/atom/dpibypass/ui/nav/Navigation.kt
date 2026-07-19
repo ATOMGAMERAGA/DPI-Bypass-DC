@@ -46,8 +46,11 @@ fun BottomPillBar(navController: NavController, modifier: Modifier = Modifier) {
     GlassSurface(
         modifier = modifier,
         shape = RoundedCornerShape(50),
-        blurRadius = 44.dp,
-        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f),
+        blurRadius = 48.dp,
+        // Daha yoğun buzlu-cam örtüsü: arkadan geçen içerik keskin "hayalet" olarak
+        // sızmasın, yalnızca bulanık + hareketli ışık dokusu görünsün. Böylece dock
+        // "saydam" değil, gerçek buzlu cam gibi durur (One UI dock hissi).
+        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),

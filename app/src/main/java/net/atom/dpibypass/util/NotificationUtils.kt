@@ -50,6 +50,7 @@ object NotificationUtils {
         content: String,
         connected: Boolean,
         persistent: Boolean = false,
+        connectedSinceMs: Long = System.currentTimeMillis(),
     ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context, 0,
@@ -66,7 +67,7 @@ object NotificationUtils {
         val actionLabel = context.getString(
             if (connected) R.string.action_disconnect else R.string.action_connect
         )
-        return NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(content)
@@ -74,7 +75,6 @@ object NotificationUtils {
             .setOngoing(connected || persistent)
             .setSilent(true)
             .setOnlyAlertOnce(true)
-            .setShowWhen(false)
             .setContentIntent(contentIntent)
             .addAction(0, actionLabel, actionIntent)
             // Samsung Now Bar / kilit ekranı canlı göstergesi, "status" kategorili,
@@ -85,6 +85,19 @@ object NotificationUtils {
             .setColorized(true)
             .setColor(ACCENT_COLOR)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+
+        if (connected) {
+            // Canlı "bağlı süresi" kronometresi — sürekli akan (ticking) bir sayaç,
+            // Samsung Now Bar'ının canlı etkinlik olarak yakalaması için güçlü bir
+            // "live" sinyalidir. Bağlanma anından itibaren sayar.
+            builder
+                .setWhen(connectedSinceMs)
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+        } else {
+            builder.setShowWhen(false)
+        }
+
+        return builder.build()
     }
 }
