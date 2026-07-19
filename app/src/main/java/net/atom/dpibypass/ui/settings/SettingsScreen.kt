@@ -73,16 +73,19 @@ fun SettingsScreen(viewModel: AppViewModel, onRequestTile: () -> Unit = {}) {
             }
         }
 
-        // ---- Samsung: navbar VPN durum göstergesi ----
-        if (DeviceInfo.isSamsung() && DeviceInfo.hasNavigationBar(context)) {
+        // ---- Samsung: Now Bar / kilit ekranı canlı durum göstergesi ----
+        // Tüm Samsung cihazlarda görünür (jest navigasyonunda da). Eskiden yalnızca
+        // tuşlu navbar cihazlarda gösterildiği için jest kullanan kullanıcılarda seçenek
+        // hiç çıkmıyordu; Now Bar bir kilit ekranı özelliği olduğundan navbar'dan bağımsızdır.
+        if (DeviceInfo.isSamsung()) {
             Spacer(Modifier.height(16.dp))
-            OneUiSection(title = "Samsung durum göstergesi") {
+            OneUiSection(title = "Samsung Now Bar / kilit ekranı") {
                 SwitchItem(
-                    title = "VPN durumunu kalıcı göster",
-                    subtitle = "Tünel açıkken Samsung sistem çubuğundaki VPN anahtar simgesini ve " +
-                        "bildirimini kalıcı tutar; \"kapat\" için tek dokunuşla erişilir. " +
-                        "(Not: Android, üçüncü taraf uygulamaların navigasyon çubuğuna buton " +
-                        "eklemesine izin vermez; en yakın desteklenen gösterge budur.)",
+                    title = "Tünel durumunu Now Bar'da göster",
+                    subtitle = "Tünel açıkken kalıcı, renkli bir canlı bildirim tutar; Samsung " +
+                        "One UI bunu kilit ekranındaki Now Bar'da ve durum çubuğunda gösterir. " +
+                        "Buradan tek dokunuşla \"kapat\"a erişebilirsiniz. (Not: Now Bar'ın " +
+                        "görünmesi için One UI ayarlarından Now Bar'ın açık olması gerekir.)",
                     checked = settings.samsungVpnIndicator,
                     onCheckedChange = viewModel::setSamsungVpnIndicator,
                 )

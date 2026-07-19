@@ -2,6 +2,7 @@ package net.atom.dpibypass.ui.home
 
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -14,8 +15,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,12 +26,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -54,56 +62,77 @@ fun HomeScreen(
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
 
+    // İçerik ekrana yumuşakça belirsin (fade + hafif yukarı kayma) — premium giriş.
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val appear by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(600),
+        label = "homeAppear",
+    )
+
     OneUiScaffold(title = "DPI Bypass") { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(innerPadding)
-                .padding(horizontal = 18.dp)
-                .padding(bottom = 100.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            Text(
-                text = "Kişisel, yasal erişim aracı",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState())
+                    .graphicsLayer {
+                        alpha = appear
+                        translationY = (1f - appear) * 48f
+                    }
+                    .padding(horizontal = 18.dp)
+                    .navigationBarsPadding()
+                    .padding(bottom = 96.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = "Kişisel, yasal erişim aracı",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-            // Aktif ağ kartı (One UI gruplanmış bölüm)
-            OneUiSection(modifier = Modifier.fillMaxWidth()) {
-                OneUiListItem(
-                    title = if (settings.operationMode.name == "Auto") "Otomatik mod" else "Manuel mod",
-                    subtitle = profile?.ispName ?: settings.selectedIsp.displayName,
-                    trailing = { ModeBadge(auto = settings.operationMode.name == "Auto") },
+                // Aktif ağ kartı (One UI gruplanmış bölüm)
+                OneUiSection(modifier = Modifier.fillMaxWidth()) {
+                    OneUiListItem(
+                        title = if (settings.operationMode.name == "Auto") "Otomatik mod" else "Manuel mod",
+                        subtitle = profile?.ispName ?: settings.selectedIsp.displayName,
+                        trailing = { ModeBadge(auto = settings.operationMode.name == "Auto") },
+                    )
+                }
+
+                Spacer(Modifier.height(36.dp))
+
+                // Büyük yuvarlak bağlan/kes butonu
+                ConnectButton(
+                    state = state,
+                    onClick = {
+                        if (state == ConnectionState.Connected ||
+                            state == ConnectionState.Connecting ||
+                            state == ConnectionState.Testing
+                        ) onDisconnect() else onConnect()
+                    },
+                )
+
+                Spacer(Modifier.height(28.dp))
+
+                Text(
+                    text = statusText(state, profile?.shortLabel()),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-
-            Spacer(Modifier.height(40.dp))
-
-            // Büyük yuvarlak bağlan/kes butonu
-            ConnectButton(
-                state = state,
-                onClick = {
-                    if (state == ConnectionState.Connected ||
-                        state == ConnectionState.Connecting ||
-                        state == ConnectionState.Testing
-                    ) onDisconnect() else onConnect()
-                },
-            )
-
-            Spacer(Modifier.height(28.dp))
-
-            Text(
-                text = statusText(state, profile?.shortLabel()),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }
@@ -159,7 +188,7 @@ private fun ConnectButton(state: ConnectionState, onClick: () -> Unit) {
 
     Box(
         modifier = Modifier
-            .size(260.dp)
+            .size(236.dp)
             .scale(pulse)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -167,7 +196,7 @@ private fun ConnectButton(state: ConnectionState, onClick: () -> Unit) {
         // Yumuşak dış ışıma halesi
         Box(
             modifier = Modifier
-                .size(260.dp)
+                .size(236.dp)
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
@@ -181,20 +210,20 @@ private fun ConnectButton(state: ConnectionState, onClick: () -> Unit) {
         // İnce halka
         Box(
             modifier = Modifier
-                .size(212.dp)
+                .size(192.dp)
                 .border(2.dp, ringColor, CircleShape),
         )
         // İç dolgu: bağlıyken accent gradyan, değilken arkadaki aurora'yı gösteren buzlu cam.
         if (connected) {
             Box(
                 modifier = Modifier
-                    .size(188.dp)
+                    .size(170.dp)
                     .background(accentGradientVertical(), CircleShape),
                 contentAlignment = Alignment.Center,
             ) { ConnectLabel(connected = true, busy = false) }
         } else {
             GlassSurface(
-                modifier = Modifier.size(188.dp),
+                modifier = Modifier.size(170.dp),
                 shape = CircleShape,
                 blurRadius = 24.dp,
                 tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
