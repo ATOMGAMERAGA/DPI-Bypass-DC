@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import net.atom.dpibypass.ui.theme.NumericMedium
+import java.util.Locale
 
 // ---------------------------------------------------------------------------
 // Yüzeyler — One UI'ın "focus block" dili.
@@ -44,6 +45,12 @@ import net.atom.dpibypass.ui.theme.NumericMedium
 // Blok içindeki satırlar ince, içeriden boşluklu ayraçlarla ayrılır. Bu düzen
 // hem tarama hızını artırır hem de ekranı "form" değil "kart" gibi gösterir.
 // ---------------------------------------------------------------------------
+
+// Başlıklar Türkçe yazıldığı için büyük harfe çevirme Türkçe kurallarıyla
+// yapılır: varsayılan (ROOT) çeviri "erişim" → "ERISIM" gibi noktasız I üretir.
+private val TurkishLocale: Locale = Locale.forLanguageTag("tr-TR")
+
+internal fun String.upperTr(): String = uppercase(TurkishLocale)
 
 /** Kart yoğunluğu — hiyerarşide hangi basamakta durduğunu belirler. */
 enum class CardTone { Plain, Raised, Accent, Danger }
@@ -103,7 +110,7 @@ fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = title.uppercase(),
+            text = title.upperTr(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f),
@@ -270,7 +277,7 @@ fun StatTile(
                 Spacer(Modifier.width(6.dp))
             }
             Text(
-                text = label.uppercase(),
+                text = label.upperTr(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
