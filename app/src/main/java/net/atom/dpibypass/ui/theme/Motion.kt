@@ -3,7 +3,6 @@ package net.atom.dpibypass.ui.theme
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.ui.unit.IntOffset
 
 // ---------------------------------------------------------------------------
 // Hareket sistemi.
@@ -46,10 +45,6 @@ object Motion {
 
     fun <T> effectsSlow(): FiniteAnimationSpec<T> =
         spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 700f)
-
-    /** Kaydırma/yerleşim geçişleri için piksel eşiğine duyarlı uzamsal yay. */
-    fun offset(): FiniteAnimationSpec<IntOffset> =
-        spring(dampingRatio = 0.8f, stiffness = 380f, visibilityThreshold = IntOffset(1, 1))
 
     // ---- Sahne süreleri (yay yerine döngüsel/sürekli animasyonlar için) ----
     /** Zemin auroralarının tam turu (ms). Yavaş = dikkat dağıtmaz. */

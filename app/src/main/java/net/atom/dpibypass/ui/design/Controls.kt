@@ -257,46 +257,6 @@ fun <T> SegmentedControl(
     }
 }
 
-/** Küçük eylem çipi — ikincil, hızlı işlemler için. */
-@Composable
-fun ActionChip(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    selected: Boolean = false,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val haptics = rememberHaptics()
-    val interaction = remember { MutableInteractionSource() }
-    val container by animateColorAsState(
-        targetValue = if (selected) scheme.primary.copy(alpha = 0.20f) else scheme.surfaceContainerHigh.copy(alpha = 0.85f),
-        animationSpec = Motion.effectsDefault(),
-        label = "chipContainer",
-    )
-    val content = if (selected) scheme.primary else scheme.onSurfaceVariant
-
-    Row(
-        modifier = modifier
-            .pressScale(interaction)
-            .clip(PillShape)
-            .background(container)
-            .border(1.dp, if (selected) scheme.primary.copy(alpha = 0.45f) else scheme.outline, PillShape)
-            .clickable(interactionSource = interaction, indication = null) {
-                haptics.tick()
-                onClick()
-            }
-            .padding(horizontal = 15.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
-        }
-        Text(text, style = MaterialTheme.typography.labelMedium, color = content, maxLines = 1)
-    }
-}
-
 /** Durum rozeti: küçük renkli etiket (BAĞLI, OTO, P2 …). */
 @Composable
 fun TagBadge(
