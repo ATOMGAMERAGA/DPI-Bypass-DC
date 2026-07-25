@@ -1,28 +1,30 @@
 package net.atom.dpibypass.ui.home
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Router
+import androidx.compose.material.icons.rounded.CallSplit
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,227 +35,375 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import net.atom.dpibypass.R
+import net.atom.dpibypass.data.AppFilterMode
 import net.atom.dpibypass.data.ConnectionState
+import net.atom.dpibypass.data.OperationMode
 import net.atom.dpibypass.ui.AppViewModel
-import net.atom.dpibypass.ui.components.GlassSurface
-import net.atom.dpibypass.ui.components.accentGradientVertical
-import net.atom.dpibypass.ui.oneui.OneUiListItem
-import net.atom.dpibypass.ui.oneui.OneUiScaffold
-import net.atom.dpibypass.ui.oneui.OneUiSection
-import net.atom.dpibypass.ui.theme.AccentBlue
-import net.atom.dpibypass.ui.theme.AccentCyan
-import net.atom.dpibypass.ui.theme.DangerRed
+import net.atom.dpibypass.ui.design.AppCard
+import net.atom.dpibypass.ui.design.AppScaffold
+import net.atom.dpibypass.ui.design.CardTone
+import net.atom.dpibypass.ui.design.ContentMaxWidth
+import net.atom.dpibypass.ui.design.DockSpacing
+import net.atom.dpibypass.ui.design.IconBubble
+import net.atom.dpibypass.ui.design.ListRow
+import net.atom.dpibypass.ui.design.RowDivider
+import net.atom.dpibypass.ui.design.ScreenPadding
+import net.atom.dpibypass.ui.design.SectionHeader
+import net.atom.dpibypass.ui.design.StatTile
+import net.atom.dpibypass.ui.design.TagBadge
+import net.atom.dpibypass.ui.design.VSpace
+import net.atom.dpibypass.ui.design.connectionColor
+import net.atom.dpibypass.ui.design.connectionHeadline
+import net.atom.dpibypass.ui.design.connectionSupport
+import net.atom.dpibypass.ui.design.entrance
+import net.atom.dpibypass.ui.design.formatUptime
+import net.atom.dpibypass.ui.design.rememberCollapseFraction
+import net.atom.dpibypass.ui.design.rememberEntrance
+import net.atom.dpibypass.ui.design.rememberHaptics
+import net.atom.dpibypass.ui.nav.Dest
+
+// ---------------------------------------------------------------------------
+// Ana ekran.
+//
+// Bilgi hiyerarşisi bilinçlidir ve yukarıdan aşağı şu soruları sırayla yanıtlar:
+//   1. Hangi ağdayım, hangi moddayım?      → üstteki rozetler
+//   2. Bağlı mıyım?                        → kahraman daire (en büyük öğe)
+//   3. Ne oluyor / ne yapmalıyım?          → düz Türkçe başlık + açıklama
+//   4. Ne kadar iyi çalışıyor?             → canlı ölçümler (ISS, strateji, ping, süre)
+//   5. Sık yaptığım şeyler nerede?         → hızlı işlem kartları
+//   6. Bu uygulama tam olarak ne yapıyor?  → güven kartı (şeffaflık)
+//
+// Eski ekranda 2. adımdan sonrası yoktu: koca bir daire ve bir satır yazı. Bir
+// VPN/erişim aracında kullanıcının SORDUĞU şey "çalışıyor mu, ne kadar hızlı?"
+// olduğu için ölçümler artık ilk ekranda.
+// ---------------------------------------------------------------------------
 
 @Composable
 fun HomeScreen(
     viewModel: AppViewModel,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    onNavigate: (String) -> Unit,
+    onRequestTile: () -> Unit,
 ) {
     val state by viewModel.connectionState.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val connectedSince by viewModel.connectedSince.collectAsStateWithLifecycle()
 
-    // İçerik ekrana yumuşakça belirsin (fade + hafif yukarı kayma) — premium giriş.
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
-    val appear by animateFloatAsState(
-        targetValue = if (shown) 1f else 0f,
-        animationSpec = tween(600),
-        label = "homeAppear",
-    )
+    val scroll = rememberScrollState()
+    val collapse = rememberCollapseFraction(scroll)
+    val entranceState = rememberEntrance()
+    val entrance = { entranceState.value }
+    val haptics = rememberHaptics()
 
-    OneUiScaffold(title = "DPI Bypass") { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter,
-        ) {
+    // Canlı süre sayacı: yalnızca bağlıyken çalışır, saniyede bir tik atar.
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(state, connectedSince) {
+        while (state == ConnectionState.Connected && connectedSince > 0L) {
+            nowMs = System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+    val uptime = if (state == ConnectionState.Connected && connectedSince > 0L) {
+        formatUptime(nowMs - connectedSince)
+    } else {
+        null
+    }
+
+    val auto = settings.operationMode == OperationMode.Auto
+    val discordOnly = settings.appFilterMode == AppFilterMode.Include &&
+        settings.selectedApps == setOf(AppViewModel.DISCORD_PACKAGE)
+    val accent = connectionColor(state)
+
+    AppScaffold(title = "DPI Bypass", collapseFraction = collapse) { padding ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState())
-                    .graphicsLayer {
-                        alpha = appear
-                        translationY = (1f - appear) * 48f
-                    }
-                    .padding(horizontal = 18.dp)
-                    .navigationBarsPadding()
-                    .padding(bottom = 96.dp),
+                    .widthIn(max = ContentMaxWidth)
+                    .verticalScroll(scroll)
+                    .padding(padding)
+                    .padding(horizontal = ScreenPadding)
+                    .padding(bottom = DockSpacing),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    text = "Kişisel, yasal erişim aracı",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                VSpace(46.dp)
 
-                Spacer(Modifier.height(16.dp))
+                // 0 — Marka satırı. Kaydırınca solar ve yerini üstteki cam
+                // şeritteki küçük başlığa bırakır (devir teslim).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .entrance(entrance, 0)
+                        .graphicsLayer { alpha = (1f - collapse * 1.6f).coerceIn(0f, 1f) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.logo),
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "DPI Bypass",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Text(
+                            text = "Kişisel, yasal erişim aracı",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
 
-                // Aktif ağ kartı (One UI gruplanmış bölüm)
-                OneUiSection(modifier = Modifier.fillMaxWidth()) {
-                    OneUiListItem(
-                        title = if (settings.operationMode.name == "Auto") "Otomatik mod" else "Manuel mod",
-                        subtitle = profile?.ispName ?: settings.selectedIsp.displayName,
-                        trailing = { ModeBadge(auto = settings.operationMode.name == "Auto") },
+                VSpace(20.dp)
+
+                // 1 — Bağlam rozetleri
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .entrance(entrance, 0),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TagBadge(if (auto) "OTOMATİK" else "MANUEL", color = MaterialTheme.colorScheme.primary)
+                    TagBadge(
+                        text = profile?.ispName ?: settings.selectedIsp.displayName,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (discordOnly) {
+                        TagBadge("YALNIZCA DISCORD", color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
+
+                VSpace(22.dp)
+
+                // 2 — Kahraman daire
+                Box(Modifier.entrance(entrance, 1)) {
+                    ConnectOrb(
+                        state = state,
+                        uptimeText = uptime,
+                        onClick = {
+                            when (state) {
+                                ConnectionState.Connected,
+                                ConnectionState.Connecting,
+                                ConnectionState.Testing,
+                                -> onDisconnect()
+                                else -> onConnect()
+                            }
+                        },
                     )
                 }
 
-                Spacer(Modifier.height(36.dp))
+                VSpace(24.dp)
 
-                // Büyük yuvarlak bağlan/kes butonu
-                ConnectButton(
-                    state = state,
-                    onClick = {
-                        if (state == ConnectionState.Connected ||
-                            state == ConnectionState.Connecting ||
-                            state == ConnectionState.Testing
-                        ) onDisconnect() else onConnect()
-                    },
-                )
+                // 3 — Durumun düz Türkçe karşılığı
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .entrance(entrance, 2),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = connectionHeadline(state),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                    )
+                    VSpace(6.dp)
+                    Text(
+                        text = connectionSupport(state),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+                }
 
-                Spacer(Modifier.height(28.dp))
+                VSpace(28.dp)
 
-                Text(
-                    text = statusText(state, profile?.shortLabel()),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-    }
-}
+                // 4 — Canlı ölçümler
+                AppCard(modifier = Modifier
+                    .fillMaxWidth()
+                    .entrance(entrance, 3)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 18.dp, end = 14.dp, top = 16.dp, bottom = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Bağlantı özeti",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TagBadge(
+                            text = if (state == ConnectionState.Connected) "CANLI" else "BEKLEMEDE",
+                            color = accent,
+                        )
+                    }
+                    RowDivider()
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StatTile(
+                                label = "Sağlayıcı",
+                                value = profile?.ispName ?: settings.selectedIsp.displayName,
+                                icon = Icons.Rounded.Router,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatTile(
+                                label = "Strateji",
+                                value = profile?.strategyId ?: if (auto) "Oto" else settings.selectedStrategyId,
+                                icon = Icons.Rounded.Tune,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StatTile(
+                                label = "Gecikme",
+                                value = profile?.latencyMs?.let { "$it ms" } ?: "—",
+                                icon = Icons.Rounded.Speed,
+                                valueColor = if (profile?.latencyMs != null) accent else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatTile(
+                                label = "Süre",
+                                value = uptime ?: "—",
+                                icon = Icons.Rounded.Timer,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
 
-@Composable
-private fun ModeBadge(auto: Boolean) {
-    Box(
-        modifier = Modifier
-            .background(
-                if (auto) accentGradientVertical() else Brush.verticalGradient(
-                    listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)
-                ),
-                RoundedCornerShape(50),
-            )
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        Text(
-            text = if (auto) "OTO" else "MANUEL",
-            color = if (auto) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
+                // 5 — Hızlı işlemler
+                SectionHeader("Hızlı işlemler", modifier = Modifier.entrance(entrance, 4))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .entrance(entrance, 4),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        QuickAction(
+                            icon = Icons.Rounded.Tune,
+                            title = "Strateji testi",
+                            caption = "En hızlısını bul",
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Dest.Mode.route) },
+                        )
+                        QuickAction(
+                            icon = Icons.Rounded.Apps,
+                            title = "Uygulamalar",
+                            caption = "Tünelden geçenler",
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Dest.Apps.route) },
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        QuickAction(
+                            icon = Icons.Rounded.Forum,
+                            title = "Sadece Discord",
+                            caption = if (discordOnly) "Açık" else "Tek dokunuşla kur",
+                            selected = discordOnly,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                haptics.confirm()
+                                viewModel.enableDiscordOnlyMode()
+                            },
+                        )
+                        QuickAction(
+                            icon = Icons.Rounded.Bolt,
+                            title = "Hızlı panel",
+                            caption = "Kısayol ekle",
+                            modifier = Modifier.weight(1f),
+                            onClick = onRequestTile,
+                        )
+                    }
+                }
 
-@Composable
-private fun ConnectButton(state: ConnectionState, onClick: () -> Unit) {
-    val connected = state == ConnectionState.Connected
-    val busy = state == ConnectionState.Connecting || state == ConnectionState.Testing
-    val failed = state == ConnectionState.Failed
-
-    val transition = rememberInfiniteTransition(label = "connect")
-    // Bağlıyken/çalışırken hafif nabız.
-    val pulse by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (connected || busy) 1.04f else 1f,
-        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
-        label = "pulseScale",
-    )
-    // Dış ışıma (glow) yoğunluğu nefes alır — premium canlılık.
-    val glow by transition.animateFloat(
-        initialValue = if (connected || busy) 0.35f else 0.12f,
-        targetValue = if (connected || busy) 0.7f else 0.22f,
-        animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Reverse),
-        label = "glowAlpha",
-    )
-
-    val ringColor = when {
-        failed -> DangerRed
-        connected -> AccentCyan
-        else -> MaterialTheme.colorScheme.outline
-    }
-
-    Box(
-        modifier = Modifier
-            .size(236.dp)
-            .scale(pulse)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        // Yumuşak dış ışıma halesi
-        Box(
-            modifier = Modifier
-                .size(236.dp)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            (if (failed) DangerRed else AccentBlue).copy(alpha = glow),
-                            Color.Transparent,
-                        ),
-                    ),
-                    CircleShape,
-                ),
-        )
-        // İnce halka
-        Box(
-            modifier = Modifier
-                .size(192.dp)
-                .border(2.dp, ringColor, CircleShape),
-        )
-        // İç dolgu: bağlıyken accent gradyan, değilken arkadaki aurora'yı gösteren buzlu cam.
-        if (connected) {
-            Box(
-                modifier = Modifier
-                    .size(170.dp)
-                    .background(accentGradientVertical(), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { ConnectLabel(connected = true, busy = false) }
-        } else {
-            GlassSurface(
-                modifier = Modifier.size(170.dp),
-                shape = CircleShape,
-                blurRadius = 24.dp,
-                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-            ) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    ConnectLabel(connected = false, busy = busy)
+                // 6 — Şeffaflık kartı
+                SectionHeader("Bu uygulama ne yapar", modifier = Modifier.entrance(entrance, 5))
+                AppCard(modifier = Modifier
+                    .fillMaxWidth()
+                    .entrance(entrance, 5)) {
+                    ListRow(
+                        title = "Trafik cihazından çıkmadan düzenlenir",
+                        subtitle = "Uzak sunucuya yönlendirme yok; yalnızca ilk paketler yerelde bölünür. " +
+                            "Bu yüzden hız düşmez, ping artmaz.",
+                        icon = Icons.Rounded.CallSplit,
+                    )
+                    RowDivider()
+                    ListRow(
+                        title = "DNS, DoH ile şifreli çözülür",
+                        subtitle = "Sağlayıcının DNS yönlendirmesi (hijack) devre dışı kalır.",
+                        icon = Icons.Rounded.Dns,
+                    )
+                    RowDivider()
+                    ListRow(
+                        title = "Trafiğiniz ŞİFRELENMEZ",
+                        subtitle = "Bu bir VPN değildir: IP gizlemez, anonimlik sağlamaz. Amaç yalnızca " +
+                            "meşru servislere erişimi açmaktır.",
+                        icon = Icons.Rounded.Lock,
+                        iconTint = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }
     }
 }
 
+/** Hızlı işlem kartı: büyük dokunma alanı, ikon + iki satır metin. */
 @Composable
-private fun ConnectLabel(connected: Boolean, busy: Boolean) {
-    Text(
-        text = when {
-            connected -> "BAĞLI"
-            busy -> "…"
-            else -> "BAĞLAN"
-        },
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        color = if (connected) Color.White else MaterialTheme.colorScheme.onSurface,
-    )
-}
-
-private fun statusText(state: ConnectionState, label: String?): String = when (state) {
-    ConnectionState.Disconnected -> "Bağlı değil"
-    ConnectionState.Testing -> "Stratejiler test ediliyor…"
-    ConnectionState.Connecting -> "Bağlanıyor…"
-    ConnectionState.Connected -> "Bağlı · ${label ?: ""}".trim().trimEnd('·', ' ')
-    ConnectionState.Failed -> "Bağlantı başarısız"
+private fun QuickAction(
+    icon: ImageVector,
+    title: String,
+    caption: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+) {
+    AppCard(
+        modifier = modifier,
+        tone = if (selected) CardTone.Accent else CardTone.Plain,
+        shape = MaterialTheme.shapes.large,
+        onClick = onClick,
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            IconBubble(
+                icon = icon,
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                size = 38.dp,
+            )
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = caption,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }

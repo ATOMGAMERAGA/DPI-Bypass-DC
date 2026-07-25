@@ -12,10 +12,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,12 +31,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import net.atom.dpibypass.data.ThemePref
 import net.atom.dpibypass.ui.apps.AppsScreen
+import net.atom.dpibypass.ui.design.AmbientBackground
+import net.atom.dpibypass.ui.design.LocalHapticsEnabled
+import net.atom.dpibypass.ui.design.connectionColor
 import net.atom.dpibypass.ui.home.HomeScreen
 import net.atom.dpibypass.ui.mode.ModeScreen
-import net.atom.dpibypass.ui.components.AuroraBackground
-import net.atom.dpibypass.ui.nav.BottomPillBar
+import net.atom.dpibypass.ui.nav.BottomDock
 import net.atom.dpibypass.ui.nav.Dest
 import net.atom.dpibypass.ui.onboarding.OnboardingOverlay
 import net.atom.dpibypass.ui.settings.SettingsScreen
@@ -64,14 +70,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             DpiBypassTheme(themePref = settings.theme) {
-                AppRoot(
-                    viewModel = viewModel,
-                    dark = isDark(settings.theme),
-                    onConnect = ::connect,
-                    onDisconnect = ::disconnect,
-                    onRequestTile = ::requestQuickTile,
-                    discordInstalled = isDiscordInstalled(),
-                )
+                // Haptik tercihi tüm arayüze buradan akar; her bileşen kendi
+                // ayarını okumak zorunda kalmaz.
+                CompositionLocalProvider(LocalHapticsEnabled provides settings.haptics) {
+                    AppRoot(
+                        viewModel = viewModel,
+                        onConnect = ::connect,
+                        onDisconnect = ::disconnect,
+                        onRequestTile = ::requestQuickTile,
+                        discordInstalled = isDiscordInstalled(),
+                    )
+                }
             }
         }
     }
@@ -115,18 +124,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    private fun isDark(pref: ThemePref): Boolean = when (pref) {
-        ThemePref.Dark -> true
-        ThemePref.Light -> false
-        ThemePref.System -> androidx.compose.foundation.isSystemInDarkTheme()
-    }
 }
 
 @Composable
 private fun AppRoot(
     viewModel: AppViewModel,
-    dark: Boolean,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onRequestTile: () -> Unit,
@@ -134,27 +136,55 @@ private fun AppRoot(
 ) {
     val navController = rememberNavController()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
 
-    AuroraBackground(dark = dark, modifier = Modifier.fillMaxSize()) {
-        NavHost(navController = navController, startDestination = Dest.Home.route) {
+    // Zemin, bağlantı durumunun rengini alır: uygulama bir bütün olarak durum
+    // değiştirir, sadece bir düğme değil.
+    AmbientBackground(
+        accent = connectionColor(connectionState),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        NavHost(
+            navController = navController,
+            startDestination = Dest.Home.route,
+            // Sekmeler arası geçiş: hafif ölçek + soluklaşma. Yatay kaydırma
+            // yerine bu seçildi, çünkü dock sekmelerinin sırası hiyerarşik değil.
+            enterTransition = { fadeIn(tween(260)) + scaleIn(initialScale = 0.98f, animationSpec = tween(260)) },
+            exitTransition = { fadeOut(tween(160)) },
+            popEnterTransition = { fadeIn(tween(260)) + scaleIn(initialScale = 0.98f, animationSpec = tween(260)) },
+            popExitTransition = { fadeOut(tween(160)) },
+        ) {
             composable(Dest.Home.route) {
-                HomeScreen(viewModel, onConnect = onConnect, onDisconnect = onDisconnect)
+                HomeScreen(
+                    viewModel = viewModel,
+                    onConnect = onConnect,
+                    onDisconnect = onDisconnect,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(Dest.Home.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onRequestTile = onRequestTile,
+                )
             }
             composable(Dest.Mode.route) { ModeScreen(viewModel) }
             composable(Dest.Apps.route) { AppsScreen(viewModel) }
             composable(Dest.Settings.route) { SettingsScreen(viewModel, onRequestTile = onRequestTile) }
         }
-        BottomPillBar(
+
+        BottomDock(
             navController = navController,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                // Jest çubuğu / navigasyon çubuğu ne olursa olsun dock her cihazda
-                // güvenli alanın üstünde yüzsün (responsive).
+                // Jest çubuğu ya da tuşlu navigasyon — dock her cihazda güvenli
+                // alanın üstünde yüzer.
                 .navigationBarsPadding()
-                .padding(bottom = 16.dp),
+                .padding(bottom = 14.dp),
         )
 
-        // İlk açılış kurulum sihirbazı — zeminin üstüne biner.
+        // İlk açılış kurulum sihirbazı — her şeyin üstüne biner.
         if (!settings.onboardingDone) {
             OnboardingOverlay(
                 discordInstalled = discordInstalled,
