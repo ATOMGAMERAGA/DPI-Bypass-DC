@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Koyu temada pencere/splash zemini (ui/theme/Color.kt → BgDarkTop). -->
+    <color name="window_background">#070A0F</color>
+</resources>

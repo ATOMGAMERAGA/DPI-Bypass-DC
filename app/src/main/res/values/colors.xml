@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_dark_top">#0E1726</color>
-    <color name="bg_dark_bottom">#15233B</color>
-    <color name="accent_cyan">#22D3EE</color>
-    <color name="accent_blue">#3B82F6</color>
-    <color name="danger_red">#EF4444</color>
+    <!-- Pencere/splash zemini. Açık tema varsayılanı burada, koyu karşılığı
+         values-night/colors.xml içinde; böylece açık temada uygulama açılırken
+         siyah bir kare yanıp sönmez. Compose paletiyle (ui/theme/Color.kt) aynı
+         değerlerdir. -->
+    <color name="window_background">#F6F8FC</color>
+
+    <color name="bg_dark_top">#070A0F</color>
+    <color name="bg_dark_bottom">#0C111A</color>
+
+    <!-- Marka rampası (logo) -->
+    <color name="brand_cyan">#22D3EE</color>
+    <color name="brand_blue">#3B82F6</color>
+    <color name="danger_red">#FB7185</color>
     <color name="white">#FFFFFF</color>
 </resources>

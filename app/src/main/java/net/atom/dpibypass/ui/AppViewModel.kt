@@ -44,6 +44,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val connectionState: StateFlow<ConnectionState> = VpnState.state
     val profile = VpnState.profile
 
+    /** Bağlantının kurulduğu an (epoch ms); ana ekrandaki süre sayacı okur. */
+    val connectedSince: StateFlow<Long> = VpnState.connectedSince
+
     // ---- canlı strateji testi ----
     private val _testResults = MutableStateFlow<List<StrategyTestResult>>(emptyList())
     val testResults: StateFlow<List<StrategyTestResult>> = _testResults.asStateFlow()
@@ -72,6 +75,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (selected) current.add(pkg) else current.remove(pkg)
         repo.setSelectedApps(current)
     }
+    fun clearSelectedApps() = launch { repo.setSelectedApps(emptySet()) }
     fun setAutoConnectOnBoot(v: Boolean) = launch { repo.setAutoConnectOnBoot(v) }
     fun setTheme(t: ThemePref) = launch { repo.setTheme(t) }
     fun setHaptics(v: Boolean) = launch { repo.setHaptics(v) }

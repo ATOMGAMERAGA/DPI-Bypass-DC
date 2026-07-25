@@ -17,13 +17,30 @@ object VpnState {
     private val _profile = MutableStateFlow<ActiveProfile?>(null)
     val profile: StateFlow<ActiveProfile?> = _profile.asStateFlow()
 
+    // Bağlantının kurulduğu an (epoch ms), bağlı değilken 0. Ana ekrandaki canlı
+    // "bağlı kalma süresi" sayacı buradan beslenir; durum burada değiştiği için
+    // servis tarafında ekstra bir kayıt tutmaya gerek kalmaz.
+    private val _connectedSince = MutableStateFlow(0L)
+    val connectedSince: StateFlow<Long> = _connectedSince.asStateFlow()
+
     fun update(state: ConnectionState) {
-        _state.value = state
+        applyState(state)
     }
 
     fun update(state: ConnectionState, profile: ActiveProfile?) {
-        _state.value = state
+        applyState(state)
         _profile.value = profile
+    }
+
+    private fun applyState(state: ConnectionState) {
+        if (state == ConnectionState.Connected) {
+            // Yeniden "Connected" bildirimi gelirse (ör. watchdog toparlaması)
+            // sayaç sıfırlanmaz; kesinti olmadıysa süre akmaya devam eder.
+            if (_connectedSince.value == 0L) _connectedSince.value = System.currentTimeMillis()
+        } else {
+            _connectedSince.value = 0L
+        }
+        _state.value = state
     }
 
     fun isRunning(): Boolean =

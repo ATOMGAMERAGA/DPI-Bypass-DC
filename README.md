@@ -44,9 +44,35 @@ DPI motoru sıfırdan yazılmamıştır; kanıtlanmış açık kaynak bileşenle
 - **Quick Settings tile:** Hızlı Panel'e eklenir, tek dokunuşla bağlar/keser; servis
   ölmüşse yeniden başlatır. İkon beyaz/tek renk.
 - **Foreground bildirim + watchdog:** Arka planda ölmez; ölürse otomatik toparlar.
-- **One UI 8.5 arayüzü:** Liquid Glass yüzeyler, yüzen pill menüler, büyük yuvarlak
-  bağlan butonu, logodan türetilmiş cyan→mavi accent, koyu/açık tema.
 - **Pil muafiyeti** kartı, açılışta otomatik bağlan, opsiyonel UDP/QUIC düşürme.
+
+## Arayüz — "Aurora Ambient" tasarım sistemi
+
+Arayüz iki güncel referansa dayanır: **Material 3 Expressive** (süre/easing yerine
+yay fiziğiyle hareket, güçlü renk-rolü hiyerarşisi) ve **One UI 8.5 Ambient Design**
+(saydam, bulanık, yüzen yüzeyler; içeriği öne çıkaran sakin zemin).
+
+- **Tek kaynaklı tasarım sistemi** (`ui/theme` + `ui/design`): renk rolleri ve
+  yüzey basamakları, tam tipografi ölçeği (ölçümlerde tabular rakam), şekil
+  ölçeği, yay (spring) hareket jetonları — *spatial* (konum/boyut, hafif taşmalı)
+  ve *effects* (renk/opaklık, taşmasız) ayrımıyla.
+- **Canlı ortam zemini:** yavaşça süzülen aurora ışıkları; zemin **bağlantı
+  durumunun rengini alır** (bağlıyken yeşile, hatada kırmızıya kayar).
+- **Kahraman bağlan dairesi:** nefes alan ışıma, duruma göre dönen gradyan halka,
+  test sırasında belirsiz ilerleme yayı, basınca fiziksel küçülme + haptik, canlı
+  bağlı kalma süresi.
+- **Gerçek buzlu cam** yalnızca yüzen kabukta (başlık şeridi, dock, kahraman
+  daire, sihirbaz). Listeler ve kartlar opak yüzey basamaklarını kullanır —
+  kaydırma akıcı kalır, metin kontrastı garanti olur.
+- **Ana ekranda canlı ölçümler:** sağlayıcı, seçilen strateji, ölçülen gecikme ve
+  bağlı kalma süresi; altında hızlı işlem kartları.
+- **Etiketli yüzen dock**, yay ile kayan seçim göstergesi; segment denetimleri,
+  animasyonlu seçim işaretleri, kademeli (staggered) ekran girişleri.
+- **Uygulama listesinde gerçek uygulama ikonları**, arama, seçilenler en üstte.
+- **Haptik ayarı artık gerçekten çalışıyor:** bağlanma/seçim/sekme değişimi
+  şiddeti farklı dokunsal geri bildirim verir; sistemde animasyonlar kapalıysa
+  sonsuz döngülü animasyonlar durur (erişilebilirlik + pil).
+- Açık/koyu tema, gece/gündüz pencere zemini (açılışta siyah yanıp sönme yok).
 
 ### Performans — yavaşlatma / ping artışı YOK
 

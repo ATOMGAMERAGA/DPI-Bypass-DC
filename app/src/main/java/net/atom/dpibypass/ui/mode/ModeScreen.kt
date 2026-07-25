@@ -1,7 +1,12 @@
 package net.atom.dpibypass.ui.mode
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,20 +16,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.Router
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,9 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.atom.dpibypass.data.OperationMode
@@ -43,12 +49,35 @@ import net.atom.dpibypass.isp.Isp
 import net.atom.dpibypass.strategy.StrategyPool
 import net.atom.dpibypass.strategy.StrategyTestResult
 import net.atom.dpibypass.ui.AppViewModel
-import net.atom.dpibypass.ui.components.GlassCard
-import net.atom.dpibypass.ui.components.PillButton
-import net.atom.dpibypass.ui.components.SectionTitle
-import net.atom.dpibypass.ui.components.accentGradient
-import net.atom.dpibypass.ui.oneui.OneUiScreen
-import net.atom.dpibypass.ui.oneui.oneUiSwitchColors
+import net.atom.dpibypass.ui.design.AppButton
+import net.atom.dpibypass.ui.design.AppCard
+import net.atom.dpibypass.ui.design.AppScreen
+import net.atom.dpibypass.ui.design.AppTextField
+import net.atom.dpibypass.ui.design.ButtonTone
+import net.atom.dpibypass.ui.design.CardTone
+import net.atom.dpibypass.ui.design.ChoiceDialog
+import net.atom.dpibypass.ui.design.ListRow
+import net.atom.dpibypass.ui.design.RowDivider
+import net.atom.dpibypass.ui.design.SectionHeader
+import net.atom.dpibypass.ui.design.Segment
+import net.atom.dpibypass.ui.design.SegmentedControl
+import net.atom.dpibypass.ui.design.SelectionCheck
+import net.atom.dpibypass.ui.design.TagBadge
+import net.atom.dpibypass.ui.design.VSpace
+import net.atom.dpibypass.ui.theme.LocalStateColors
+import net.atom.dpibypass.ui.theme.Motion
+import net.atom.dpibypass.ui.theme.NumericSmall
+import net.atom.dpibypass.ui.theme.PillShape
+
+// ---------------------------------------------------------------------------
+// Strateji ekranı.
+//
+// Buradaki asıl tasarım sorunu şuydu: "strateji" kullanıcı için soyut bir kavram.
+// Çözüm, seçimi görünür kanıta bağlamak — canlı test sonuçları artık ekranın
+// birinci sınıf içeriği: her preset için ✓/✗, ölçülen gecikme ve diğerlerine
+// göre uzunluğu değişen bir çubuk. Kullanıcı "hangisi daha iyi" sorusunu
+// okumadan, bakarak yanıtlıyor.
+// ---------------------------------------------------------------------------
 
 @Composable
 fun ModeScreen(viewModel: AppViewModel) {
@@ -57,210 +86,286 @@ fun ModeScreen(viewModel: AppViewModel) {
     val testing by viewModel.testing.collectAsStateWithLifecycle()
     val winner by viewModel.testWinner.collectAsStateWithLifecycle()
 
-    OneUiScreen(title = "Mod") {
-        Spacer(Modifier.height(4.dp))
+    var ispPickerOpen by remember { mutableStateOf(false) }
+    val auto = settings.operationMode == OperationMode.Auto
 
-        // Otomatik / Manuel seçim
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PillButton(
-                text = "Otomatik",
-                selected = settings.operationMode == OperationMode.Auto,
-                onClick = { viewModel.setOperationMode(OperationMode.Auto) },
-                modifier = Modifier.weight(1f),
-            )
-            PillButton(
-                text = "Manuel",
-                selected = settings.operationMode == OperationMode.Manual,
-                onClick = { viewModel.setOperationMode(OperationMode.Manual) },
-                modifier = Modifier.weight(1f),
-            )
-        }
+    AppScreen(
+        title = "Strateji",
+        subtitle = "Sağlayıcınızın DPI'ını aşan yöntemi otomatik bulun ya da kendiniz seçin.",
+    ) {
+        SegmentedControl(
+            options = listOf(
+                Segment(OperationMode.Auto, "Otomatik", Icons.Rounded.AutoAwesome),
+                Segment(OperationMode.Manual, "Manuel", Icons.Rounded.Terminal),
+            ),
+            selected = settings.operationMode,
+            onSelect = viewModel::setOperationMode,
+        )
 
-        Spacer(Modifier.height(16.dp))
+        VSpace(16.dp)
 
-        if (settings.operationMode == OperationMode.Manual) {
-            SectionTitle("İnternet Servis Sağlayıcı (ISS)")
-            IspDropdown(selected = settings.selectedIsp, onSelect = viewModel::setSelectedIsp)
-            Spacer(Modifier.height(16.dp))
-
-            SectionTitle("Strateji (preset)")
-            StrategyPool.all.forEach { strategy ->
-                PresetRow(
-                    id = strategy.id,
-                    name = strategy.name,
-                    note = strategy.note,
-                    selected = settings.selectedStrategyId == strategy.id && !settings.advancedEnabled,
-                    onClick = { viewModel.setSelectedStrategy(strategy.id) },
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            Spacer(Modifier.height(8.dp))
-            AdvancedArgsCard(
-                enabled = settings.advancedEnabled,
-                args = settings.advancedArgs,
-                onEnabledChange = viewModel::setAdvancedEnabled,
-                onArgsChange = viewModel::setAdvancedArgs,
-            )
-        } else {
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "Otomatik mod: uygulama, ISS'nizi tespit edip stratejileri hızlıca test eder ve " +
-                        "çalışan en düşük ping'liyi seçer. Bağlanınca otomatik yapılır; aşağıdan " +
-                        "şimdi de test edebilirsiniz.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        AnimatedVisibility(
+            visible = auto,
+            enter = fadeIn(animationSpec = Motion.effectsDefault()) + expandVertically(),
+            exit = fadeOut(animationSpec = Motion.effectsFast()) + shrinkVertically(),
+        ) {
+            AppCard(tone = CardTone.Accent, modifier = Modifier.fillMaxWidth()) {
+                ListRow(
+                    title = "Otomatik seçim açık",
+                    subtitle = "Bağlanırken sağlayıcınız tespit edilir, havuzdaki stratejiler tek tek " +
+                        "denenir ve çalışanlar arasından EN DÜŞÜK gecikmeli olan seçilir.",
+                    icon = Icons.Rounded.AutoAwesome,
                 )
             }
         }
 
-        Spacer(Modifier.height(20.dp))
-        SectionTitle("Canlı strateji testi")
-        Spacer(Modifier.height(8.dp))
-        LiveTestSection(
+        AnimatedVisibility(
+            visible = !auto,
+            enter = fadeIn(animationSpec = Motion.effectsDefault()) + expandVertically(),
+            exit = fadeOut(animationSpec = Motion.effectsFast()) + shrinkVertically(),
+        ) {
+            Column {
+                SectionHeader("Servis sağlayıcı")
+                AppCard(modifier = Modifier.fillMaxWidth()) {
+                    ListRow(
+                        title = "Sağlayıcı",
+                        subtitle = settings.selectedIsp.displayName,
+                        icon = Icons.Rounded.Router,
+                        onClick = { ispPickerOpen = true },
+                        trailing = {
+                            Icon(
+                                Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
+                }
+
+                SectionHeader("Hazır stratejiler")
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StrategyPool.all.forEach { strategy ->
+                        val selected = settings.selectedStrategyId == strategy.id && !settings.advancedEnabled
+                        PresetCard(
+                            id = strategy.id,
+                            name = strategy.name,
+                            note = strategy.note,
+                            selected = selected,
+                            onClick = { viewModel.setSelectedStrategy(strategy.id) },
+                        )
+                    }
+                }
+
+                SectionHeader("Gelişmiş")
+                AppCard(modifier = Modifier.fillMaxWidth()) {
+                    ListRow(
+                        title = "Serbest ByeDPI argümanı",
+                        subtitle = "Açıkken preset yerine aşağıdaki argümanlar kullanılır.",
+                        icon = Icons.Rounded.Terminal,
+                        trailing = {
+                            SelectionCheck(selected = settings.advancedEnabled)
+                        },
+                        onClick = { viewModel.setAdvancedEnabled(!settings.advancedEnabled) },
+                    )
+                    AnimatedVisibility(visible = settings.advancedEnabled) {
+                        Column {
+                            RowDivider()
+                            Box(Modifier.padding(16.dp)) {
+                                AppTextField(
+                                    value = settings.advancedArgs,
+                                    onValueChange = viewModel::setAdvancedArgs,
+                                    placeholder = "--split 2 --disorder 3 --fake -1 --ttl 5",
+                                    singleLine = false,
+                                    monospace = true,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SectionHeader(
+            title = "Canlı test",
+            trailing = {
+                if (testing) TagBadge("SÜRÜYOR", color = LocalStateColors.current.busy)
+            },
+        )
+        LiveTestCard(
             testing = testing,
             results = results,
-            winnerLabel = winner?.let { "Seçilen: ${it.strategy.id} — ${it.latencyMs ?: "?"} ms" },
+            winner = winner,
             onStart = viewModel::runStrategyTest,
+        )
+    }
+
+    if (ispPickerOpen) {
+        ChoiceDialog(
+            title = "Servis sağlayıcı",
+            options = Isp.entries.map { it to it.displayName },
+            selected = settings.selectedIsp,
+            onSelect = viewModel::setSelectedIsp,
+            onDismiss = { ispPickerOpen = false },
         )
     }
 }
 
 @Composable
-private fun IspDropdown(selected: Isp, onSelect: (Isp) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        GlassCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true },
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = selected.displayName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(Icons.Rounded.ExpandMore, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            Isp.entries.forEach { isp ->
-                DropdownMenuItem(
-                    text = { Text(isp.displayName) },
-                    onClick = {
-                        onSelect(isp)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PresetRow(
+private fun PresetCard(
     id: String,
     name: String,
     note: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    GlassCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+    val stateColors = LocalStateColors.current
+    AppCard(
+        modifier = Modifier.fillMaxWidth(),
+        tone = if (selected) CardTone.Accent else CardTone.Plain,
+        onClick = onClick,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(
                 modifier = Modifier
                     .size(44.dp)
+                    .clip(CircleShape)
                     .then(
-                        if (selected) Modifier.background(accentGradient(), CircleShape)
-                        else Modifier
+                        if (selected) {
+                            Modifier.background(stateColors.brandGradient(), CircleShape)
+                        } else {
+                            Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape)
+                        },
                     ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    id,
-                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = id,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
+                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(Modifier.size(12.dp))
+            Spacer(Modifier.width(13.dp))
             Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                Text(note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (selected) {
-                Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.secondary)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AdvancedArgsCard(
-    enabled: Boolean,
-    args: String,
-    onEnabledChange: (Boolean) -> Unit,
-    onArgsChange: (String) -> Unit,
-) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Gelişmiş (serbest ByeDPI argümanı)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                    Text("Açıkken preset yerine bu argümanlar kullanılır.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(checked = enabled, onCheckedChange = onEnabledChange, colors = oneUiSwitchColors())
-            }
-            if (enabled) {
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = args,
-                    onValueChange = onArgsChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("--split 2 --disorder 3 --fake -1 --ttl 5") },
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                    keyboardOptions = KeyboardOptions.Default,
-                    singleLine = false,
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
+            Spacer(Modifier.width(10.dp))
+            SelectionCheck(selected = selected)
         }
     }
 }
 
 @Composable
-private fun LiveTestSection(
+private fun LiveTestCard(
     testing: Boolean,
     results: List<StrategyTestResult>,
-    winnerLabel: String?,
+    winner: StrategyTestResult?,
     onStart: () -> Unit,
 ) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            PillButton(
-                text = if (testing) "Test ediliyor…" else "Stratejileri Test Et",
-                selected = !testing,
+    val stateColors = LocalStateColors.current
+    val done = results.count { it.state != StrategyTestResult.State.Pending && it.state != StrategyTestResult.State.Testing }
+    val total = results.size.coerceAtLeast(1)
+    val progress by animateFloatAsState(
+        targetValue = if (results.isEmpty()) 0f else done.toFloat() / total,
+        animationSpec = Motion.spatialDefault(),
+        label = "testProgress",
+    )
+    // Çubuk uzunlukları en yavaş başarılı sonuca göre ölçeklenir: kısa çubuk =
+    // hızlı strateji. Sayıyı okumadan karşılaştırma yapılabilir.
+    val slowest = results.mapNotNull { it.latencyMs }.maxOrNull()?.coerceAtLeast(1L) ?: 1L
+
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                text = "Stratejileri şimdi dene",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            VSpace(4.dp)
+            Text(
+                text = "VPN kurmadan, DoH ile çözüp gerçek TLS el sıkışması yaparak ölçer. " +
+                    "İnternetiniz bu sırada kesilmez.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            VSpace(14.dp)
+            AppButton(
+                text = if (testing) "Test sürüyor…" else "Testi başlat",
                 onClick = { if (!testing) onStart() },
+                tone = if (testing) ButtonTone.Tonal else ButtonTone.Primary,
+                icon = Icons.Rounded.Science,
+                enabled = !testing,
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (results.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                results.forEach { r -> TestResultRow(r) }
+
+            AnimatedVisibility(visible = results.isNotEmpty()) {
+                Column {
+                    VSpace(16.dp)
+                    // İlerleme çubuğu
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(PillShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                                .height(6.dp)
+                                .clip(PillShape)
+                                .background(stateColors.brandGradient()),
+                        )
+                    }
+                    VSpace(12.dp)
+                    results.forEach { result ->
+                        TestResultRow(result = result, slowest = slowest)
+                    }
+                }
             }
-            winnerLabel?.let {
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(accentGradient(), RoundedCornerShape(16.dp))
-                        .padding(14.dp),
-                ) {
-                    Text(it, color = Color.White, fontWeight = FontWeight.Bold)
+
+            AnimatedVisibility(visible = winner != null) {
+                Column {
+                    VSpace(14.dp)
+                    AppCard(tone = CardTone.Accent, modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Rounded.EmojiEvents,
+                                contentDescription = null,
+                                tint = stateColors.connected,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = "Kazanan: ${winner?.strategy?.id} · ${winner?.strategy?.name}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    text = "Ölçülen gecikme: ${winner?.latencyMs ?: "?"} ms — bu strateji kaydedildi.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -268,41 +373,91 @@ private fun LiveTestSection(
 }
 
 @Composable
-private fun TestResultRow(r: StrategyTestResult) {
+private fun TestResultRow(result: StrategyTestResult, slowest: Long) {
+    val stateColors = LocalStateColors.current
+    val scheme = MaterialTheme.colorScheme
+    val fraction by animateFloatAsState(
+        targetValue = result.latencyMs?.let { (it.toFloat() / slowest).coerceIn(0.08f, 1f) } ?: 0f,
+        animationSpec = Motion.spatialSlow(),
+        label = "latencyBar",
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            r.strategy.id,
-            modifier = Modifier.size(width = 40.dp, height = 20.dp),
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            text = result.strategy.id,
+            style = MaterialTheme.typography.labelMedium,
+            color = scheme.onSurface,
+            modifier = Modifier.width(34.dp),
         )
-        Text(
-            r.strategy.name,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        when (r.state) {
-            StrategyTestResult.State.Testing ->
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            StrategyTestResult.State.Success -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "${r.latencyMs ?: "?"} ms",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-                Spacer(Modifier.size(6.dp))
-                Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = result.strategy.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            VSpace(5.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(PillShape)
+                    .background(scheme.surfaceContainerHighest),
+            ) {
+                if (fraction > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .height(4.dp)
+                            .clip(PillShape)
+                            .background(stateColors.connected),
+                    )
+                }
             }
-            StrategyTestResult.State.Failed ->
-                Icon(Icons.Rounded.Close, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-            StrategyTestResult.State.Pending ->
-                Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.width(62.dp), contentAlignment = Alignment.CenterEnd) {
+            when (result.state) {
+                StrategyTestResult.State.Testing -> CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = stateColors.busy,
+                )
+
+                StrategyTestResult.State.Success -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${result.latencyMs ?: "?"} ms",
+                        style = NumericSmall,
+                        color = stateColors.connected,
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = "Başarılı",
+                        tint = stateColors.connected,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+
+                StrategyTestResult.State.Failed -> Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = "Başarısız",
+                    tint = scheme.error,
+                    modifier = Modifier.size(16.dp),
+                )
+
+                StrategyTestResult.State.Pending -> Text(
+                    text = "—",
+                    style = NumericSmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
