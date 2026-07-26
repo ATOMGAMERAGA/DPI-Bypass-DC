@@ -30,17 +30,6 @@ android {
         versionCode = providers.gradleProperty("VERSION_CODE").get().toInt()
     }
 
-    signingConfigs {
-        create("release") {
-            System.getenv("RELEASE_STORE_FILE")?.let { path ->
-                storeFile = file(path)
-                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
-                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
-            }
-        }
-    }
-
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
@@ -50,6 +39,11 @@ android {
     }
 }
 ```
+
+> İmzalama bloğunun güncel hâli `app/build.gradle.kts` içindedir: anahtar bilgisi
+> `keystore.properties` dosyasından **veya** ortam değişkenlerinden okunur, hiçbiri
+> yoksa release derlemesi **hata verip durur** (debug anahtarına düşmez).
+> Ayrıntı: [`docs/Imzalama-Rehberi.md`](docs/Imzalama-Rehberi.md)
 Uygulama içinde sürümü göstermek için `BuildConfig.VERSION_NAME` kullan. `release.yml` yalnızca `gradle.properties`'i günceller → her yer otomatik değişir.
 
 ### 1.2. GitHub Secrets (Repo > Settings > Secrets and variables > Actions)
@@ -59,13 +53,14 @@ Uygulama içinde sürümü göstermek için `BuildConfig.VERSION_NAME` kullan. `
 - `KEY_ALIAS`
 - `KEY_PASSWORD`
 
-Keystore oluştur ve base64'e çevir:
+Keystore oluştur ve base64'e çevir (adım adım: [`docs/Imzalama-Rehberi.md`](docs/Imzalama-Rehberi.md)):
 ```bash
-keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias dpibypass
+keytool -genkeypair -v -keystore dpibypass-release.jks -alias dpibypass \
+  -keyalg RSA -keysize 4096 -validity 10000 -storetype PKCS12
 # Linux:
-base64 -w0 release.jks > keystore.b64
+base64 -w0 dpibypass-release.jks > keystore.b64
 # macOS:
-base64 -i release.jks -o keystore.b64
+base64 -i dpibypass-release.jks -o keystore.b64
 ```
 `keystore.b64` içeriğini `KEYSTORE_BASE64` secret'ine yapıştır. **`release.jks` dosyasını repoya EKLEME** (`.gitignore`'a al). Kaybedersen aynı imzayla güncelleme yayınlayamazsın; yedekle.
 

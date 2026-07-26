@@ -112,10 +112,18 @@ Gereksinimler: JDK 17+, Android SDK, **NDK 26.3.11579264**, **CMake 3.22.1**.
 ```bash
 git clone --recurse-submodules <repo-url>
 cd DPI-Bypass-DC
-./gradlew assembleDebug     # veya assembleRelease
+./gradlew assembleDebug
 ```
 
 > Submodülleri unuttuysanız: `git submodule update --init --recursive`
+
+**Release derlemesi imzalama anahtarı ister.** `keystore.properties.example`
+dosyasını `keystore.properties` olarak kopyalayıp doldurun, sonra
+`./gradlew assembleRelease`. Anahtar tanımlı değilse derleme açık bir hatayla
+durur — debug anahtarına **düşmez** (debug imzalı sürüm dağıtılamaz: imzası her
+makinede farklıdır, üzerine güncelleme kurulmaz ve Play Protect uyarır).
+Bilinçli test için `./gradlew assembleRelease -PallowDebugSigning=true`.
+Adım adım: [`docs/Imzalama-Rehberi.md`](docs/Imzalama-Rehberi.md)
 
 ## Sürüm çıkarma (tek kaynak)
 
@@ -133,16 +141,23 @@ Sürüm **tek kaynaktan** yönetilir: `gradle.properties` içindeki `VERSION_NAM
 
 ### İmzalama secret'ları (Repo → Settings → Secrets and variables → Actions)
 
-`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Dördü de
+tanımlı değilse Release workflow'u **hata verip durur** (sessizce debug imzasına
+düşmez); yalnızca "SADECE TEST" kutusu işaretlendiğinde debug anahtarına izin
+verilir ve o çalıştırma tag/release oluşturmaz.
 
 ```bash
-keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias dpibypass
-base64 -w0 release.jks > keystore.b64   # macOS: base64 -i release.jks -o keystore.b64
+keytool -genkeypair -v -keystore dpibypass-release.jks -alias dpibypass \
+  -keyalg RSA -keysize 4096 -validity 10000 -storetype PKCS12
+base64 -w0 dpibypass-release.jks > keystore.b64   # macOS: base64 -i ... -o keystore.b64
 ```
 
-`keystore.b64` içeriğini `KEYSTORE_BASE64`'e yapıştırın. **`release.jks` repoya
-EKLENMEZ** (`.gitignore`). İmza env değişkenleri: `RELEASE_STORE_FILE`,
-`RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`.
+`keystore.b64` içeriğini `KEYSTORE_BASE64`'e yapıştırın. **Keystore repoya
+EKLENMEZ** (`.gitignore`) ve **kaybedilirse aynı uygulamaya güncelleme
+yayınlanamaz** — yedekleyin. Yerel derleme `keystore.properties`, CI ise
+`RELEASE_STORE_FILE` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` /
+`RELEASE_KEY_PASSWORD` env değişkenlerini kullanır.
+Tam rehber: [`docs/Imzalama-Rehberi.md`](docs/Imzalama-Rehberi.md)
 
 ## Dağıtım / Google
 

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -8,6 +10,37 @@ plugins {
 // günceller, buradaki türetme sayesinde her yere yansır.
 val versionNameProp: String = providers.gradleProperty("VERSION_NAME").get()
 val versionCodeProp: Int = providers.gradleProperty("VERSION_CODE").get().toInt()
+
+// ---------------------------------------------------------------------------
+// İMZALAMA — iki kaynak, şu öncelikle okunur:
+//   1) keystore.properties (proje kökü, .gitignore'da — yerel release derlemesi)
+//   2) ortam değişkenleri (CI: .github/workflows/release.yml)
+// Hiçbiri yoksa release derlemesi HATA verir; debug anahtarına SESSİZCE düşmez.
+// (Debug anahtarı her makinede/CI çalıştırmasında farklıdır: her sürüm başka bir
+// imzayla çıkar, kullanıcı üzerine güncelleme kuramaz ve Play Protect uygulamayı
+// "bilinmeyen geliştirici" diye işaretler. Bilinçli test için:
+//   ./gradlew assembleRelease -PallowDebugSigning=true )
+// Ayrıntı: docs/Imzalama-Rehberi.md
+// ---------------------------------------------------------------------------
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+
+fun signingSetting(propKey: String, envKey: String): String? =
+    (keystoreProps.getProperty(propKey) ?: System.getenv(envKey))?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingSetting("storeFile", "RELEASE_STORE_FILE")
+val releaseStorePassword = signingSetting("storePassword", "RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = signingSetting("keyAlias", "RELEASE_KEY_ALIAS")
+val releaseKeyPassword = signingSetting("keyPassword", "RELEASE_KEY_PASSWORD")
+
+val hasReleaseSigning = listOf(
+    releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+).all { it != null }
+
+val allowDebugSigning =
+    (providers.gradleProperty("allowDebugSigning").orNull ?: System.getenv("ALLOW_DEBUG_SIGNING")) == "true"
 
 android {
     namespace = "net.atom.dpibypass"
@@ -30,25 +63,28 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            // İmzalama bilgileri ortam değişkenlerinden okunur (CI/release.yml).
-            // Yerelde tanımlı değilse debug imzasına düşülür (aşağıda).
-            System.getenv("RELEASE_STORE_FILE")?.let { path ->
-                storeFile = file(path)
-                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
-                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                // APK imza şemaları: v2/v3 modern Android'in doğruladığı şemalar,
+                // v1 (JAR) eski araç/doğrulayıcılar için uyumluluk olarak açık.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = false
             }
         }
     }
 
     buildTypes {
         release {
-            // Keystore ortam değişkenleri varsa RESMİ release imzası kullanılır.
-            // Yoksa (secret tanımlı değilse) build'in yine de KURULABİLİR bir APK
-            // üretebilmesi için debug anahtarına düşülür. Resmi dağıtım için
-            // KEYSTORE_BASE64 vb. secret'ları tanımlayın (bkz. CI-CD rehberi).
-            signingConfig = if (System.getenv("RELEASE_STORE_FILE") != null) {
+            // Gerçek imzalama bilgisi varsa RESMİ imza kullanılır. Yoksa derleme
+            // verifyReleaseSigning görevinde durur (bkz. dosya başı) — tek istisna
+            // bilinçli olarak -PallowDebugSigning=true verilmesidir.
+            signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
@@ -182,4 +218,53 @@ tasks.register<Exec>("runNdkBuild") {
 
 tasks.preBuild {
     dependsOn("runNdkBuild")
+}
+
+// ---------------------------------------------------------------------------
+// Release imzası kapısı — yanlışlıkla debug anahtarıyla imzalanmış bir sürümün
+// dağıtılmasını engeller. assembleRelease / bundleRelease bu göreve bağlıdır.
+// ---------------------------------------------------------------------------
+val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+    group = "verification"
+    description = "Release derlemesi için gerçek bir imzalama anahtarı tanımlı mı denetler."
+    doFirst {
+        if (hasReleaseSigning) {
+            logger.lifecycle("Release imzası: RESMİ anahtar (alias=$releaseKeyAlias).")
+            return@doFirst
+        }
+        if (allowDebugSigning) {
+            logger.warn(
+                "UYARI: Release DEBUG anahtarıyla imzalanıyor (allowDebugSigning=true). " +
+                    "Bu APK dağıtılmamalı — imzası her makinede/CI çalıştırmasında farklıdır, " +
+                    "üzerine güncelleme kurulamaz ve Play Protect uyarısı verir."
+            )
+            return@doFirst
+        }
+        throw GradleException(
+            """
+            Release imzalama anahtarı bulunamadı — derleme durduruldu.
+
+            Şu dördü de tanımlı olmalı (keystore.properties dosyasında ya da ortam değişkeni olarak):
+              storeFile     / RELEASE_STORE_FILE
+              storePassword / RELEASE_STORE_PASSWORD
+              keyAlias      / RELEASE_KEY_ALIAS
+              keyPassword   / RELEASE_KEY_PASSWORD
+
+            Yerel kurulum:  keystore.properties.example dosyasını keystore.properties olarak kopyala.
+            CI kurulumu:    KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD secret'ları.
+            Adım adım:      docs/Imzalama-Rehberi.md
+
+            Sadece hızlı bir test APK'sı istiyorsan (DAĞITMA):
+              ./gradlew assembleRelease -PallowDebugSigning=true
+            """.trimIndent()
+        )
+    }
+}
+
+// preReleaseBuild: release varyantının en erken adımı — kapı, paketleme başlamadan
+// önce kapanır. packageRelease* de ayrıca bağlanır (emniyet kemeri).
+tasks.matching {
+    it.name in setOf("preReleaseBuild", "packageRelease", "packageReleaseBundle")
+}.configureEach {
+    dependsOn(verifyReleaseSigning)
 }
