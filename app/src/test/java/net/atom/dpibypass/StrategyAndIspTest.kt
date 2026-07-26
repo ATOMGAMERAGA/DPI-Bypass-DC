@@ -1,10 +1,14 @@
 package net.atom.dpibypass
 
+import net.atom.dpibypass.data.NetworkProfile
 import net.atom.dpibypass.isp.Isp
+import net.atom.dpibypass.isp.IspDetector
 import net.atom.dpibypass.isp.IspFamily
+import net.atom.dpibypass.isp.Transport
 import net.atom.dpibypass.strategy.StrategyPool
 import net.atom.dpibypass.util.shellSplit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,5 +47,49 @@ class StrategyAndIspTest {
         for (family in IspFamily.entries) {
             assertEquals(7, StrategyPool.orderedFor(family).size)
         }
+    }
+
+    /**
+     * Yarış sırası, bu ağda daha önce kazanmış stratejiyi başa alır ama hiçbirini
+     * DÜŞÜRMEZ: süre bütçesi dolmazsa havuzun tamamı yine ölçülür.
+     */
+    @Test
+    fun pool_raceOrder_putsPreferredFirstWithoutLosingCandidates() {
+        for (family in IspFamily.entries) {
+            val order = StrategyPool.raceOrder(family, StrategyPool.P5)
+            assertEquals(StrategyPool.P5, order.first())
+            assertEquals(7, order.size)
+            assertEquals(7, order.map { it.id }.toSet().size)
+            assertEquals(StrategyPool.all.map { it.id }.toSet(), order.map { it.id }.toSet())
+        }
+    }
+
+    @Test
+    fun pool_raceOrder_withoutPreferred_keepsFamilyOrder() {
+        for (family in IspFamily.entries) {
+            assertEquals(StrategyPool.orderedFor(family), StrategyPool.raceOrder(family, null))
+        }
+    }
+
+    /** Ağ profili tazeliği: gelecekteki ve pencere dışı damgalar taze sayılmaz. */
+    @Test
+    fun networkProfile_freshnessWindow() {
+        val now = 1_000_000_000L
+        val window = NetworkProfile.FRESH_WINDOW_MS
+        assertTrue(NetworkProfile("P5", now - 1000).isFresh(now))
+        assertTrue(NetworkProfile("P5", now - window).isFresh(now))
+        assertFalse(NetworkProfile("P5", now - window - 1).isFresh(now))
+        // Eski biçimden gelen "zamanı bilinmiyor" kaydı: bir kez yeniden yarıştırılır.
+        assertFalse(NetworkProfile("P5", 0L).isFresh(now))
+        // Saat geri alınmışsa ileri tarihli damga güvenilmez sayılır.
+        assertFalse(NetworkProfile("P5", now + 5000).isFresh(now))
+    }
+
+    @Test
+    fun networkKey_separatesTransportAndIsp() {
+        val wifi = IspDetector.networkKey(Transport.WiFi, Isp.Superonline)
+        val mobile = IspDetector.networkKey(Transport.Cellular, Isp.Superonline)
+        assertTrue(wifi != mobile)
+        assertEquals(wifi, IspDetector.networkKey(Transport.WiFi, Isp.Superonline))
     }
 }

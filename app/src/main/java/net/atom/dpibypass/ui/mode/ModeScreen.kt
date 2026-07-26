@@ -94,6 +94,7 @@ fun ModeScreen(viewModel: AppViewModel) {
     val results by viewModel.testResults.collectAsStateWithLifecycle()
     val testing by viewModel.testing.collectAsStateWithLifecycle()
     val winner by viewModel.testWinner.collectAsStateWithLifecycle()
+    val canTest by viewModel.canRunTest.collectAsStateWithLifecycle()
 
     var ispPickerOpen by remember { mutableStateOf(false) }
     val auto = settings.operationMode == OperationMode.Auto
@@ -121,8 +122,9 @@ fun ModeScreen(viewModel: AppViewModel) {
             AppCard(tone = CardTone.Accent, modifier = Modifier.fillMaxWidth()) {
                 ListRow(
                     title = "Otomatik seçim açık",
-                    subtitle = "Bağlanırken sağlayıcınız tespit edilir, havuzdaki stratejiler tek tek " +
-                        "denenir ve çalışanlar arasından EN DÜŞÜK gecikmeli olan seçilir.",
+                    subtitle = "Bu ağda en son kazanan strateji hatırlanır: bağlanırken önce O denenir, " +
+                        "çalışıyorsa bağlantı saniyesinde kurulur. Çalışmıyorsa (ya da profil eskiyse) " +
+                        "havuzun tamamı ölçülür ve çalışanlar arasından EN DÜŞÜK gecikmeli olan seçilir.",
                     icon = Icons.Rounded.AutoAwesome,
                 )
             }
@@ -206,6 +208,7 @@ fun ModeScreen(viewModel: AppViewModel) {
         )
         LiveTestCard(
             testing = testing,
+            canTest = canTest,
             results = results,
             winner = winner,
             onStart = viewModel::runStrategyTest,
@@ -302,6 +305,7 @@ private fun PresetCard(
 @Composable
 private fun LiveTestCard(
     testing: Boolean,
+    canTest: Boolean,
     results: List<StrategyTestResult>,
     winner: StrategyTestResult?,
     onStart: () -> Unit,
@@ -327,18 +331,29 @@ private fun LiveTestCard(
             )
             VSpace(4.dp)
             Text(
-                text = "VPN kurmadan, DoH ile çözüp gerçek TLS el sıkışması yaparak ölçer. " +
-                    "İnternetiniz bu sırada kesilmez.",
+                // Tünel açıkken test yapılamamasının teknik sebebi (tek native
+                // motor örneği) kullanıcıya SONUÇ olarak anlatılır.
+                text = if (!canTest) {
+                    "Test, tünel kapalıyken yapılır: ölçüm motoru ile tünel motoru aynıdır, " +
+                        "ikisi aynı anda çalışamaz. Önce bağlantıyı kesin."
+                } else {
+                    "VPN kurmadan, DoH ile çözüp gerçek TLS el sıkışması yaparak ölçer. " +
+                        "İnternetiniz bu sırada kesilmez."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             VSpace(14.dp)
             AppButton(
-                text = if (testing) "Test sürüyor…" else "Testi başlat",
-                onClick = { if (!testing) onStart() },
+                text = when {
+                    testing -> "Test sürüyor…"
+                    !canTest -> "Tünel açıkken test edilemez"
+                    else -> "Testi başlat"
+                },
+                onClick = { if (!testing && canTest) onStart() },
                 tone = if (testing) ButtonTone.Tonal else ButtonTone.Primary,
                 icon = Icons.Rounded.Science,
-                enabled = !testing,
+                enabled = !testing && canTest,
                 modifier = Modifier.fillMaxWidth(),
             )
 

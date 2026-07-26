@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import net.atom.dpibypass.dns.DohProvider
 import net.atom.dpibypass.isp.Isp
@@ -45,6 +46,26 @@ data class Settings(
     fun effectiveDohUrl(): String =
         customDohUrl.trim().ifBlank { dohProvider.url }
 }
+
+/**
+ * Bir ağda kazanmış strateji ve kaydedildiği an.
+ *
+ * [isFresh] penceresi bilinçli olarak uzun: strateji bağlanırken zaten CANLI
+ * doğrulanıyor, yani "eski" bir profil de gerçekten çalıştığı doğrulanmadan
+ * kullanılmıyor. Pencere, "çalışıyor ama artık en iyisi değil" ihtimali için
+ * ara sıra yeniden yarıştırmaya yarar.
+ */
+data class NetworkProfile(val strategyId: String, val savedAtMs: Long) {
+    fun isFresh(nowMs: Long, windowMs: Long = FRESH_WINDOW_MS): Boolean =
+        savedAtMs > 0L && nowMs - savedAtMs in 0..windowMs
+
+    companion object {
+        const val FRESH_WINDOW_MS = 12L * 60 * 60 * 1000
+    }
+}
+
+private const val KEY_STRATEGY = "id"
+private const val KEY_SAVED_AT = "at"
 
 class SettingsRepository(private val context: Context) {
 
@@ -93,22 +114,44 @@ class SettingsRepository(private val context: Context) {
     suspend fun setSamsungVpnIndicator(v: Boolean) = put(Keys.SAMSUNG_VPN_INDICATOR, v)
 
     /**
-     * Ağ profili: bir ağ anahtarına (SSID/operatör) en iyi stratejiyi bağlar; aynı
-     * ağa tekrar bağlanınca test etmeden kullanılır. JSON olarak saklanır.
+     * Ağ profili: bir ağ anahtarına (taşıyıcı + ISS) o ağda KAZANMIŞ stratejiyi
+     * bağlar. Bağlanırken önce bu strateji canlı olarak doğrulanır; çalışıyorsa
+     * yarışa hiç girilmez (bkz. DpiVpnService.resolvePlan). Zaman damgası da
+     * saklanır: eskiyen profil, "hâlâ en iyisi mi" diye yeniden yarıştırılır.
+     *
+     * JSON olarak saklanır. Eski sürüm değeri düz metin (yalnızca strateji kimliği)
+     * yazıyordu; okuma o biçimi de kabul eder.
      */
-    suspend fun saveNetworkProfile(networkKey: String, strategyId: String) {
+    suspend fun saveNetworkProfile(
+        networkKey: String,
+        strategyId: String,
+        savedAtMs: Long = System.currentTimeMillis(),
+    ) {
         context.dataStore.edit { prefs ->
             val json = JSONObject(prefs[Keys.NETWORK_PROFILES] ?: "{}")
-            json.put(networkKey, strategyId)
+            json.put(
+                networkKey,
+                JSONObject().put(KEY_STRATEGY, strategyId).put(KEY_SAVED_AT, savedAtMs),
+            )
             prefs[Keys.NETWORK_PROFILES] = json.toString()
         }
     }
 
-    fun networkProfile(networkKey: String): Flow<String?> =
-        context.dataStore.data.map { prefs ->
-            val json = JSONObject(prefs[Keys.NETWORK_PROFILES] ?: "{}")
-            if (json.has(networkKey)) json.getString(networkKey) else null
+    suspend fun networkProfile(networkKey: String): NetworkProfile? {
+        val prefs = context.dataStore.data.first()
+        val json = runCatching { JSONObject(prefs[Keys.NETWORK_PROFILES] ?: "{}") }
+            .getOrElse { return null }
+        return when (val entry = json.opt(networkKey)) {
+            is JSONObject -> {
+                val id = entry.optString(KEY_STRATEGY).takeIf { it.isNotBlank() } ?: return null
+                NetworkProfile(id, entry.optLong(KEY_SAVED_AT, 0L))
+            }
+            // Eski biçim: yalnızca strateji kimliği. Zamanı bilinmediği için
+            // "çok eski" sayılır; bir kez yeniden yarıştırılır ve yeni biçime geçer.
+            is String -> entry.takeIf { it.isNotBlank() }?.let { NetworkProfile(it, 0L) }
+            else -> null
         }
+    }
 
     private suspend fun put(key: Preferences.Key<String>, value: String) =
         context.dataStore.edit { it[key] = value }

@@ -74,9 +74,6 @@ val ScreenPadding: Dp = 18.dp
 /** Başlığın tamamen daralması için gereken kaydırma mesafesi. */
 private val HeaderCollapseDistance: Dp = 72.dp
 
-/** Dock'un tam olarak küçülmesi için gereken kaydırma mesafesi (daha uzun: yumuşak). */
-private val DockCollapseDistance: Dp = 150.dp
-
 /**
  * Ekranların kaydırma durumunu kabuk öğeleriyle (başlık şeridi, dock) paylaşan
  * ortak durum. Değerler `MutableFloatState`'tir ve yalnızca çizim aşamasında
@@ -313,11 +310,6 @@ internal fun easeTitle(collapse: Float): Float =
 /** Camın eğrisi: yazıdan sonra gelir, son ana kadar tam yoğunlaşmaz. */
 internal fun easeGlass(collapse: Float): Float =
     Motion.Emphasized.transform(((collapse - 0.05f) / 0.8f).coerceIn(0f, 1f))
-
-/** Dock'un küçülme mesafesi (px) — dock bileşeni bunu kullanır. */
-@Composable
-internal fun dockCollapseDistancePx(): Float =
-    with(LocalDensity.current) { DockCollapseDistance.toPx() }
 
 /** Dikey boşluk kısayolu — ekranlarda tekrar eden Spacer'ları sadeleştirir. */
 @Composable

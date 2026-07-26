@@ -77,9 +77,19 @@ object StrategyPool {
     fun byId(id: String?): Strategy? = all.firstOrNull { it.id == id }
 
     /**
-     * ISS ailesine göre test sırası ipucu. Tester yine de hepsini dener; bu sadece
-     * en olası çalışanı erken bulup testi hızlandırmak içindir.
+     * ISS ailesine göre test sırası ipucu. Tester yine de hepsini dener ve kazananı
+     * SIRAYA göre değil PUANA göre seçer (başarı, sonra gecikme); sıra yalnızca
+     * süre bütçesi dolduğunda hangilerinin ölçülmüş olacağını belirler.
+     *
+     * [raceOrder] buna ek olarak, bu ağda daha önce kazanmış stratejiyi başa alır:
+     * yarış kesilse bile en umutlu aday kesinlikle ölçülmüş olur.
      */
+    fun raceOrder(family: IspFamily, preferred: Strategy?): List<Strategy> {
+        val base = orderedFor(family)
+        if (preferred == null) return base
+        return listOf(preferred) + base.filter { it.id != preferred.id }
+    }
+
     fun orderedFor(family: IspFamily): List<Strategy> = when (family) {
         IspFamily.TurkTelekom -> listOf(P2, P7, P3, P1, P5, P4, P6)
         IspFamily.Turkcell -> listOf(P2, P3, P7, P1, P5, P4, P6)

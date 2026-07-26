@@ -70,6 +70,7 @@ import net.atom.dpibypass.ui.design.SwitchRow
 import net.atom.dpibypass.ui.design.VSpace
 import net.atom.dpibypass.util.AppUsage
 import net.atom.dpibypass.util.DeviceInfo
+import net.atom.dpibypass.util.NotificationUtils
 
 // ---------------------------------------------------------------------------
 // Ayarlar.
@@ -124,10 +125,9 @@ fun SettingsScreen(viewModel: AppViewModel, onRequestTile: () -> Unit = {}) {
                         RowDivider()
                         ListRow(
                             title = "Now Bar görünmüyor mu?",
-                            subtitle = "Uygulama, Now Bar listesine ilk kez BAĞLANDIKTAN sonra düşer " +
-                                "(sistem, canlı bildirim gönderen uygulamaları o an tanır). Sonrasında " +
-                                "One UI'da Ayarlar → Kilit ekranı ve AOD → Now bar bölümünden açık " +
-                                "olduğundan emin olun. Bildirim ayarlarını buradan açabilirsiniz.",
+                            subtitle = nowBarHelpText(
+                                remember { NotificationUtils.liveUpdateState(context) }
+                            ),
                             icon = Icons.Rounded.HelpOutline,
                             onClick = { openNotificationSettings(context) },
                             trailing = {
@@ -479,6 +479,29 @@ private fun rememberUsage(): AppUsage.Snapshot {
         }
     }
     return snapshot
+}
+
+/**
+ * Yardım metni tahmin etmez: sistemin o anki cevabını söyler. Kullanıcı "neden
+ * çıkmıyor" sorusunu ayar ayar dolaşmadan, tek satırda yanıtlar.
+ */
+private fun nowBarHelpText(state: NotificationUtils.LiveUpdateState): String = when (state) {
+    NotificationUtils.LiveUpdateState.Unsupported ->
+        "Bu Android sürümünde canlı bildirim (Now Bar) mekanizması yok; bildirim " +
+            "normal şekilde görünmeye devam eder."
+
+    NotificationUtils.LiveUpdateState.NotificationsOff ->
+        "Uygulamanın bildirimleri KAPALI — bu hâlde Now Bar'da hiçbir şey çıkamaz. " +
+            "Açmak için dokunun."
+
+    NotificationUtils.LiveUpdateState.Blocked ->
+        "Sistem bu uygulama için canlı bildirimleri kapatmış. Ayarlar → Bildirimler → " +
+            "Canlı bildirimler listesinden açın."
+
+    NotificationUtils.LiveUpdateState.Ready ->
+        "Sistem hazır. Uygulama, Now Bar listesine ilk kez BAĞLANDIKTAN sonra düşer " +
+            "(sistem, canlı bildirim gönderen uygulamaları o an tanır). Sonra One UI'da " +
+            "Ayarlar → Kilit ekranı ve AOD → Now bar bölümünden açık olduğundan emin olun."
 }
 
 private fun openNotificationSettings(context: android.content.Context) {

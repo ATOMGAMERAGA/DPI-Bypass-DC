@@ -102,10 +102,14 @@ class DpiVpnService : LifecycleVpnService() {
             val settings = settingsRepo.settings.first()
             persistentIndicator = settings.samsungVpnIndicator
             currentDohUrl = settings.effectiveDohUrl()
-            val (strategy, latency) = resolveStrategy(settings)
-            val ispName = resolveIspName(settings)
-            currentProfile = ActiveProfile(strategy.id, strategy.name, ispName, latency?.toInt())
-            currentArgs = strategy.toArgv(PROXY_PORT)
+            val plan = resolvePlan(settings)
+            currentProfile = ActiveProfile(
+                plan.strategy.id,
+                plan.strategy.name,
+                plan.ispName,
+                plan.latencyMs?.toInt(),
+            )
+            currentArgs = plan.strategy.toArgv(PROXY_PORT)
 
             mutex.withLock {
                 VpnState.update(ConnectionState.Connecting)
@@ -150,38 +154,90 @@ class DpiVpnService : LifecycleVpnService() {
 
     // ---- strateji seçimi ----
 
-    private suspend fun resolveStrategy(settings: Settings): Pair<Strategy, Long?> {
+    /** Bağlanma kararı: hangi strateji, ölçülen gecikmesi ve gösterilecek ISS adı. */
+    private data class ConnectionPlan(
+        val strategy: Strategy,
+        val latencyMs: Long?,
+        val ispName: String,
+    )
+
+    /**
+     * Otomatik kipte strateji seçimi iki aşamalıdır:
+     *
+     *   1. HIZLI YOL — bu ağda en son kazanan strateji hatırlanıyorsa YALNIZCA o
+     *      denenir. Çalışıyorsa bağlantı ~1 saniyede kurulur. Bu, hatırlanan
+     *      değeri körü körüne kullanmak değildir: strateji o an canlı olarak
+     *      doğrulanır, yani "çalıştığı kanıtlanmış" olur.
+     *   2. YARIŞ — hatırlanan yoksa, eskiyse ya da artık çalışmıyorsa bütün
+     *      havuz ölçülür ve (başarı, gecikme) sırasına göre EN İYİSİ seçilir.
+     *      Kazanan ağ profiline yazılır; sonraki bağlanmalar 1. adımdan çıkar.
+     *
+     * Eskiden burada "ilk çalışanı al" vardı ve liste sırası yüzünden bu pratikte
+     * hep P1 demekti (bkz. StrategyTester başlığı).
+     */
+    private suspend fun resolvePlan(settings: Settings): ConnectionPlan {
         // 1) Gelişmiş serbest argümanlar
         if (settings.advancedEnabled && settings.advancedArgs.isNotBlank()) {
             val custom = Strategy(
                 "CUSTOM", getString(R.string.strategy_custom), "",
                 settings.advancedArgs.trim(),
             )
-            return custom to null
+            return ConnectionPlan(custom, null, settings.selectedIsp.displayName)
         }
-        // 2) Manuel: seçili preset
+        // 2) Manuel: seçili preset. ISS tespiti için ağ sorgusu yapılmaz — manuel
+        //    kipte kimse tahmini beklemiyor, bağlanma anında kurulmalı.
         if (settings.operationMode == OperationMode.Manual) {
-            return (StrategyPool.byId(settings.selectedStrategyId) ?: StrategyPool.P1) to null
+            val strategy = StrategyPool.byId(settings.selectedStrategyId) ?: StrategyPool.P1
+            return ConnectionPlan(strategy, null, settings.selectedIsp.displayName)
         }
-        // 3) Otomatik: canlı test ile en iyi (en düşük ping'li çalışan) stratejiyi bul
+
+        // 3) Otomatik
         VpnState.update(ConnectionState.Testing)
+        val detector = IspDetector(applicationContext)
+        val transport = detector.activeTransport()
+        // O an GERÇEKTEN bağlı olunan ağa göre: Wi-Fi'daysak SIM'e değil, dış
+        // IP'nin ASN'sine bakılır (bkz. IspDetector). TEK KEZ sorulur; eskiden
+        // aynı sorgu strateji sırası ve ISS adı için iki kez yapılıyordu.
+        val isp = detector.bestGuess() ?: settings.selectedIsp
+        val ispName = isp.displayName
+        val networkKey = IspDetector.networkKey(transport, isp)
+
         val doh = DohResolver(settings.effectiveDohUrl())
         val tester = StrategyTester(lifecycleScope, doh)
-        val detector = IspDetector(applicationContext)
-        // O an GERÇEKTEN bağlı olunan ağa göre: Wi-Fi'daysak SIM'e değil, dış
-        // IP'nin ASN'sine bakılır (bkz. IspDetector).
-        val family = detector.bestGuessFamily(settings.selectedIsp)
-        val ordered = StrategyPool.orderedFor(family)
         val hosts = StrategyTester.DEFAULT_BLOCKED_HOSTS + extraHosts(settings)
-        val best = tester.run(ordered, hosts)
-        return if (best != null) {
-            // Ağ profiline kaydet (aynı ağa tekrar bağlanınca tekrar test etmemek için).
-            best.first to best.second
-        } else {
-            // Hiçbiri çalışmadı → yine de en olası preset ile dene, kullanıcıyı bilgilendir.
-            Log.w(TAG, "Otomatik test hiçbir çalışan strateji bulamadı; ilk preset kullanılıyor")
-            ordered.first() to null
+
+        // --- 1. aşama: hatırlanan kazananı doğrula ---
+        val remembered = runCatching { settingsRepo.networkProfile(networkKey) }.getOrNull()
+        val rememberedStrategy = StrategyPool.byId(remembered?.strategyId)
+        if (remembered != null && rememberedStrategy != null &&
+            remembered.isFresh(System.currentTimeMillis())
+        ) {
+            val latency = tester.verify(rememberedStrategy, hosts)
+            if (latency != null) {
+                Log.i(TAG, "Hızlı yol: ${rememberedStrategy.id} doğrulandı (${latency} ms)")
+                return ConnectionPlan(rememberedStrategy, latency, ispName)
+            }
+            Log.i(TAG, "Hatırlanan ${rememberedStrategy.id} artık çalışmıyor; yarış başlıyor")
         }
+
+        // --- 2. aşama: yarış ---
+        val ordered = StrategyPool.raceOrder(isp.family, rememberedStrategy)
+        val best = tester.run(
+            strategies = ordered,
+            blockedHosts = hosts,
+            timeoutMs = StrategyTester.QUICK_TIMEOUT_MS,
+            budgetMs = RACE_BUDGET_MS,
+        )
+        if (best != null) {
+            // Ağ profiline kaydet: aynı ağa bir daha bağlanırken doğrudan hızlı yol.
+            runCatching { settingsRepo.saveNetworkProfile(networkKey, best.first.id) }
+            Log.i(TAG, "Yarış kazananı: ${best.first.id} (${best.second} ms)")
+            return ConnectionPlan(best.first, best.second, ispName)
+        }
+
+        // Hiçbiri çalışmadı → yine de en olası preset ile dene.
+        Log.w(TAG, "Otomatik test hiçbir çalışan strateji bulamadı; ilk preset kullanılıyor")
+        return ConnectionPlan(ordered.first(), null, ispName)
     }
 
     private fun extraHosts(settings: Settings): List<String> =
@@ -189,12 +245,6 @@ class DpiVpnService : LifecycleVpnService() {
             .split(',', '\n', ' ')
             .map { it.trim() }
             .filter { it.isNotBlank() }
-
-    private suspend fun resolveIspName(settings: Settings): String {
-        if (settings.operationMode == OperationMode.Manual) return settings.selectedIsp.displayName
-        val detector = IspDetector(applicationContext)
-        return (detector.bestGuess() ?: settings.selectedIsp).displayName
-    }
 
     // ---- ByeDPI proxy ----
 
@@ -411,5 +461,13 @@ class DpiVpnService : LifecycleVpnService() {
         const val PROXY_PORT = 1080
         private const val DEFAULT_DNS = "1.1.1.1"
         private const val HEALTH_CHECK_INTERVAL_MS = 60_000L
+
+        /**
+         * Strateji yarışının üst sınırı. Dolduğunda o ana kadarki EN İYİSİ ile
+         * bağlanılır; kullanıcı "bağlan" dedikten sonra belirsiz süre beklemez.
+         * Yalnızca hatırlanan strateji yoksa ya da artık çalışmıyorsa devreye
+         * girer — olağan bağlanma bu yola hiç uğramaz.
+         */
+        private const val RACE_BUDGET_MS = 9_000L
     }
 }

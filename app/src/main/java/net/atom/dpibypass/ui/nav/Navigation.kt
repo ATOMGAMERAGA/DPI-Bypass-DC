@@ -1,6 +1,7 @@
 package net.atom.dpibypass.ui.nav
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Settings
@@ -26,19 +26,20 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -46,7 +47,6 @@ import net.atom.dpibypass.ui.design.GlassLevel
 import net.atom.dpibypass.ui.design.GlassSurface
 import net.atom.dpibypass.ui.design.LocalChrome
 import net.atom.dpibypass.ui.design.LocalShellBackdrop
-import net.atom.dpibypass.ui.design.dockCollapseDistancePx
 import net.atom.dpibypass.ui.design.rememberHaptics
 import net.atom.dpibypass.ui.theme.LocalStateColors
 import net.atom.dpibypass.ui.theme.Motion
@@ -66,9 +66,20 @@ enum class Dest(
     Settings("settings", "Ayarlar", Icons.Outlined.Settings, Icons.Rounded.Settings),
 }
 
+// Dock'un iki durağı. Aradaki geçiş yayla sürülür; ARADA SÜREKLİ BİR DEĞER YOKTUR
+// (nedeni aşağıda, "CAM NEDEN ÖLÇEKLENMEZ" başlığında).
 private val ItemWidth = 62.dp
 private val ItemHeight = 48.dp
 private val DockPadding = 7.dp
+private val IconSize = 23.dp
+
+private val CompactItemWidth = 54.dp
+private val CompactItemHeight = 42.dp
+private val CompactDockPadding = 6.dp
+private val CompactIconSize = 21.dp
+
+/** Dock'un daralmaya geçtiği kaydırma eşiği. */
+private val CompactThreshold = 56.dp
 
 /**
  * Yüzen dock.
@@ -87,14 +98,31 @@ private val DockPadding = 7.dp
  *    sekmelerde bile gözün göstergeyi kaybetmemesini sağlayan klasik animasyon
  *    hilesidir. Duracağı yere yaklaşınca kendi biçimine geri döner.
  *
- *  * İKONLAR DEVREDER. Yeni sekmenin ikonu büyüyerek ve hafifçe yükselerek
- *    öne çıkar, eskisi aynı anda söner. İki ikon çaprazlama geçtiği için
- *    "yanıp sönme" hissi olmaz.
+ *  * GÖSTERGE DOCK'UN ŞEKLİNİ KONUŞUR. Dock tam hap (pill) biçimindedir; içindeki
+ *    gösterge de öyledir. Eşmerkezli köşe kuralı: iç yüzeyin yarıçapı = dış
+ *    yarıçap − aradaki boşluk. Burada (48+2·7)/2 − 7 = 24 = ItemHeight/2, yani
+ *    tam hap. Önceki %42'lik yarıçap bu eşitliği tutturmuyordu; gösterge hap
+ *    biçimli dock'un içinde "köşeli bir dikdörtgen" gibi duruyordu — üstelik
+ *    yatay esneme (scaleX) köşeleri elipsleştirdiği için uyumsuzluk hareket
+ *    sırasında daha da göze batıyordu. Hap biçiminde esneme, köşe bozulması
+ *    değil, doğal bir squash & stretch olarak okunur.
  *
- *  * DOCK EKRANA TEPKİ VERİR. Sayfa aşağı kaydırıldıkça dock küçülür ve biraz
- *    şeffaflaşır (içeriğe yer açar); en üste dönüldüğünde tam boyuna oturur.
- *    Bu bir yeniden yerleşim (relayout) değil, saf katman dönüşümüdür — yani
- *    kaydırma sırasında hiçbir maliyeti yoktur.
+ *  * DOCK EKRANA TEPKİ VERİR — AMA CAM ÖLÇEKLENMEZ. Sayfa aşağı kaydırıldıkça
+ *    dock küçülür. Bu küçülme artık `graphicsLayer` ölçeği ile DEĞİL, gerçek
+ *    yerleşim ölçüleriyle (ikon/kutu/boşluk) yapılıyor.
+ *
+ *    CAM NEDEN ÖLÇEKLENMEZ: buzlu cam, arkasındaki katmanın kendi konumuna denk
+ *    gelen bölümünü örnekleyip bulanıklaştırır (bkz. Glass.kt). Örnekleme,
+ *    yüzeyin YERLEŞİM konumuna ve boyutuna göre yapılır. `graphicsLayer` ile
+ *    ölçeklenen bir yüzeyde ekrandaki gerçek alan ile örneklenen alan birbirini
+ *    tutmaz: bulanık görüntü de dock ile birlikte küçülür, arkasındaki gerçek
+ *    içerikle hizası kayar. Sonuç, camın "camlığını" kaybedip düz bir tül gibi
+ *    görünmesidir. Üstüne bir de katman opaklığı düşürülüyordu (alpha) — yani
+ *    dock küçüldükçe hem hizasını hem yoğunluğunu kaybediyordu. İkisi de
+ *    kaldırıldı: dock her boyutta TAM yoğunlukta buzlu camdır.
+ *
+ *    Yerleşim değişimi yalnızca eşik geçilirken (birkaç yüz ms) yeniden
+ *    kompozisyon üretir; kaydırmanın kendisi hâlâ bedava.
  */
 @Composable
 fun BottomDock(navController: NavController, modifier: Modifier = Modifier) {
@@ -105,8 +133,35 @@ fun BottomDock(navController: NavController, modifier: Modifier = Modifier) {
     val shell = LocalShellBackdrop.current
     val density = LocalDensity.current
 
-    val dockDistancePx = dockCollapseDistancePx()
-    val itemWidthPx = with(density) { ItemWidth.toPx() }
+    val thresholdPx = with(density) { CompactThreshold.toPx() }
+    // derivedStateOf: kaydırma her karede değişir ama SONUÇ (compact) yalnızca
+    // eşik geçilirken değişir — yeniden kompozisyon da yalnızca o an olur.
+    val compact by remember(chrome, thresholdPx) {
+        derivedStateOf { chrome.scrollPx > thresholdPx }
+    }
+
+    val itemWidth by animateDpAsState(
+        targetValue = if (compact) CompactItemWidth else ItemWidth,
+        animationSpec = Motion.spatialSlow(),
+        label = "dockItemWidth",
+    )
+    val itemHeight by animateDpAsState(
+        targetValue = if (compact) CompactItemHeight else ItemHeight,
+        animationSpec = Motion.spatialSlow(),
+        label = "dockItemHeight",
+    )
+    val dockPadding by animateDpAsState(
+        targetValue = if (compact) CompactDockPadding else DockPadding,
+        animationSpec = Motion.spatialSlow(),
+        label = "dockPadding",
+    )
+    val iconSize by animateDpAsState(
+        targetValue = if (compact) CompactIconSize else IconSize,
+        animationSpec = Motion.spatialSlow(),
+        label = "dockIconSize",
+    )
+
+    val itemWidthPx = with(density) { itemWidth.toPx() }
 
     val selectedIndex = Dest.entries.indexOfFirst { it.route == current }.coerceAtLeast(0)
     val target = selectedIndex.toFloat()
@@ -116,30 +171,20 @@ fun BottomDock(navController: NavController, modifier: Modifier = Modifier) {
         label = "dockIndicator",
     )
 
-    // Kaydırma tepkisi: ölçek + opaklık. Yalnızca çizim aşamasında okunur.
-    val collapse = { Motion.Emphasized.transform(chrome.collapse(dockDistancePx)) }
-
     GlassSurface(
-        modifier = modifier
-            .graphicsLayer {
-                val c = collapse()
-                val s = 1f - 0.12f * c
-                scaleX = s
-                scaleY = s
-                translationY = c * 6.dp.toPx()
-                alpha = 1f - 0.16f * c
-                transformOrigin = TransformOrigin(0.5f, 1f)
-            },
+        modifier = modifier,
         shape = PillShape,
         level = GlassLevel.Shell,
         backdrop = shell,
         borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
     ) {
-        Box(Modifier.padding(DockPadding)) {
+        Box(Modifier.padding(dockPadding)) {
             DockIndicator(
                 position = { indicator.value },
                 target = target,
                 itemWidthPx = itemWidthPx,
+                width = itemWidth,
+                height = itemHeight,
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
@@ -149,6 +194,9 @@ fun BottomDock(navController: NavController, modifier: Modifier = Modifier) {
                     DockItem(
                         dest = dest,
                         selected = index == selectedIndex,
+                        width = itemWidth,
+                        height = itemHeight,
+                        iconSize = iconSize,
                         onClick = {
                             if (index == selectedIndex) {
                                 haptics.tick()
@@ -171,17 +219,20 @@ fun BottomDock(navController: NavController, modifier: Modifier = Modifier) {
 /**
  * Kayan seçim göstergesi. Hedefe olan uzaklık, hareket süresince şekle
  * dönüştürülür: uzakken yatayda uzar/dikeyde basılır, yaklaşınca toparlanır.
+ * Biçim tam haptır; dock ile eşmerkezlidir.
  */
 @Composable
 private fun DockIndicator(
     position: () -> Float,
     target: Float,
     itemWidthPx: Float,
+    width: Dp,
+    height: Dp,
 ) {
     val gradient = LocalStateColors.current.brandGradient()
     Box(
         modifier = Modifier
-            .size(width = ItemWidth, height = ItemHeight)
+            .size(width = width, height = height)
             .graphicsLayer {
                 val p = position()
                 translationX = p * itemWidthPx
@@ -190,13 +241,20 @@ private fun DockIndicator(
                 scaleX = 1f + 0.26f * stretch
                 scaleY = 1f - 0.18f * stretch
             }
-            .clip(RoundedCornerShape(percent = 42))
-            .background(gradient, RoundedCornerShape(percent = 42)),
+            .clip(PillShape)
+            .background(gradient, PillShape),
     )
 }
 
 @Composable
-private fun DockItem(dest: Dest, selected: Boolean, onClick: () -> Unit) {
+private fun DockItem(
+    dest: Dest,
+    selected: Boolean,
+    width: Dp,
+    height: Dp,
+    iconSize: Dp,
+    onClick: () -> Unit,
+) {
     val scheme = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -220,9 +278,9 @@ private fun DockItem(dest: Dest, selected: Boolean, onClick: () -> Unit) {
 
     Box(
         modifier = Modifier
-            .width(ItemWidth)
-            .height(ItemHeight)
-            .clip(RoundedCornerShape(percent = 42))
+            .width(width)
+            .height(height)
+            .clip(PillShape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .clearAndSetSemantics {
                 contentDescription = dest.label
@@ -246,7 +304,7 @@ private fun DockItem(dest: Dest, selected: Boolean, onClick: () -> Unit) {
                 imageVector = dest.icon,
                 contentDescription = null,
                 modifier = Modifier
-                    .size(23.dp)
+                    .size(iconSize)
                     .graphicsLayer { alpha = 1f - selection.value },
                 tint = idleTint,
             )
@@ -255,7 +313,7 @@ private fun DockItem(dest: Dest, selected: Boolean, onClick: () -> Unit) {
                 imageVector = dest.iconSelected,
                 contentDescription = null,
                 modifier = Modifier
-                    .size(23.dp)
+                    .size(iconSize)
                     .graphicsLayer { alpha = selection.value },
                 tint = Color.White,
             )

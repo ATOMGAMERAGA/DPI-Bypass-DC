@@ -1,17 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Adaptive icon foreground: logo içeriği güvenli bölgeye (safe zone) ölçeklenir.
      Kalkan içi şeffaftır; arka plan gradyan katmanı içeriden görünür.
+     ÇİZİM DEĞİŞMEDİ — yalnızca ikon kutusundaki ölçeği ve oturuşu ayarlandı.
 
-     OPTİK MERKEZLEME: kalkanın sınırlayıcı kutusu (y 33..479) tam ortalıdır, ama
-     mürekkebin kendisi öyle değil — kalkan üstte tam genişlikte, altta sivri
-     uçla biter. Alan ağırlık merkezi kutu merkezinin ~46 birim ÜSTÜNDE kalır,
-     bu yüzden ikon geometrik olarak ortalanmış olmasına rağmen gözle YUKARIDA
-     duruyormuş gibi görünüyordu (launcher'daki dairesel maskede daha da belirgin).
-     translateY ile içerik aşağı kaydırılıp kütle merkezi maskenin merkezine
-     yaklaştırılır. Ölçekten (0.56) sonra uygulandığı için değer küçüktür.
+     ÖLÇÜLEN DURUM (One UI launcher ekran görüntüsü, kutucuk 208x207 px):
+       logo 127x155 px → kutunun %61'i genişlik, %75'i yükseklik
+       üst boşluk 35 px, alt boşluk 17 px  → logo AŞAĞI KAYMIŞ, ucu dibe yapışık
+     Kaymanın kaynağı önceki translateY=16'ydı: 16/512 * 108dp = 3.375dp, maskenin
+     %4.7'si — ölçülen 9 px'lik kaymanın tam karşılığı. "Optik merkezleme" doğru
+     fikirdi ama fazla kaçmıştı; mürekkep ağırlık merkezi de merkezin ALTINA
+     düşüyordu (+6.8 px).
 
-     Monokrom katman (ic_launcher_monochrome) aynı düzeltmeyi kendi ölçeğine göre
-     yapar; iki katman birbirinin üstüne birebir oturmalıdır. -->
+     YENİ DEĞERLER:
+       translateY = 4  → mürekkep ağırlık merkezi maske merkezine oturur
+                         (kalkan altta sivrildiği için tam sıfır değil, 4 birim).
+       scale = 0.54    → içeriğin merkeze en uzak noktası (kalkanın üst köşesi,
+                         merkeze 288.5 birim) 288.5*0.54 = 155.8 birim = 32.9dp
+                         yarıçapa iner; 33dp'lik güvenli daireye TAM sığar. Yani
+                         hangi maske kullanılırsa kullanılsın köşe kırpılmaz ve
+                         logo kutunun içinde nefes alır.
+
+     Monokrom katman (ic_launcher_monochrome) aynı değerleri kullanır; tema
+     ikonuna geçildiğinde logo boyut değiştirmemelidir. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -20,9 +30,9 @@
     android:viewportHeight="512">
 
     <group
-        android:scaleX="0.56" android:scaleY="0.56"
+        android:scaleX="0.54" android:scaleY="0.54"
         android:pivotX="256" android:pivotY="256"
-        android:translateY="16">
+        android:translateY="4">
 
         <path
             android:pathData="M256 40 L432 104 V268 C432 372 360 440 256 472 C152 440 80 372 80 268 V104 Z"
