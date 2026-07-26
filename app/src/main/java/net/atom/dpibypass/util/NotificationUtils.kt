@@ -145,13 +145,26 @@ object NotificationUtils {
 
         // Android 16 ilk sürüm sözleşmesi: renklendirme ZORUNLU, talep gereksiz
         // (ama zararsız — bilinmeyen extra'lar yok sayılır).
-        val colorized = variant(colorized = true, requestPromotion = true)
-        if (isPromotable(colorized)) return colorized
+        val colorizedVariant = variant(colorized = true, requestPromotion = true)
+        if (isPromotable(colorizedVariant)) return colorizedVariant
 
-        // Hiçbiri kabul edilmediyse (ör. bayrak kapalı bir cihaz) yeni sözleşmeye
-        // uyanı gönderiyoruz: bildirim normal şekilde görünür, sadece promote
-        // edilmez.
-        return requested
+        // Yüklem hiç çalışmadıysa (yansıma başarısız / bayrak kapalı) ölçemedik.
+        // O zaman API VARLIĞINA bakarız: setRequestPromotedOngoing yalnızca yeni
+        // sözleşmeyle birlikte geldi; varsa yeni, yoksa eski sözleşme cihazıyız.
+        // Bu ayrım olmasaydı ölçüm başarısızlığında Android 16 ilk sürümündeki
+        // çalışan davranışı bozardık.
+        return if (supportsPromotionRequest) requested else colorizedVariant
+    }
+
+    /** `Notification.Builder#setRequestPromotedOngoing` bu cihazda var mı? */
+    private val supportsPromotionRequest: Boolean by lazy {
+        runCatching {
+            Notification.Builder::class.java.getMethod(
+                "setRequestPromotedOngoing",
+                Boolean::class.javaPrimitiveType,
+            )
+            true
+        }.getOrDefault(false)
     }
 
     private fun build(
