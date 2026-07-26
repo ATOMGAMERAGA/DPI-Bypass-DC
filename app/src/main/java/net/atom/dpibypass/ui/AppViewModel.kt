@@ -22,6 +22,7 @@ import net.atom.dpibypass.dns.DohProvider
 import net.atom.dpibypass.dns.DohResolver
 import net.atom.dpibypass.isp.Isp
 import net.atom.dpibypass.isp.IspDetector
+import net.atom.dpibypass.isp.Transport
 import net.atom.dpibypass.strategy.StrategyPool
 import net.atom.dpibypass.strategy.StrategyTestResult
 import net.atom.dpibypass.strategy.StrategyTester
@@ -33,6 +34,20 @@ data class AppEntry(
     val label: String,
     val system: Boolean,
 )
+
+/**
+ * O an gerçekten bağlı olunan ağın özeti. [isp] çözülene kadar null'dır; ASN
+ * sorgusu ağ üzerinden yapıldığı için birkaç yüz milisaniye sürebilir.
+ */
+data class NetworkInfo(
+    val transport: Transport = Transport.Unknown,
+    val isp: Isp? = null,
+    val resolving: Boolean = false,
+) {
+    /** Ekranda gösterilecek ad: çözülmüşse ISS adı, değilse taşıyıcı adı. */
+    fun label(fallback: String): String = isp?.displayName
+        ?: if (resolving) "Algılanıyor…" else fallback
+}
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -60,6 +75,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- yüklü uygulamalar ----
     private val _apps = MutableStateFlow<List<AppEntry>>(emptyList())
     val apps: StateFlow<List<AppEntry>> = _apps.asStateFlow()
+
+    // ---- aktif ağ ----
+    private val _network = MutableStateFlow(NetworkInfo())
+    val network: StateFlow<NetworkInfo> = _network.asStateFlow()
+
+    init {
+        refreshNetwork()
+    }
+
+    /**
+     * Aktif ağı yeniden çözer. Taşıyıcı (Wi-Fi / mobil) anında bilinir ve hemen
+     * yayınlanır; ISS adı ağ üzerinden geldiği için arkadan tamamlanır. Böylece
+     * ekran "Bilinmiyor"da takılı kalmaz, kademeli olarak dolar.
+     */
+    fun refreshNetwork() {
+        val detector = IspDetector(getApplication<Application>())
+        val transport = detector.activeTransport()
+        _network.value = NetworkInfo(transport = transport, isp = null, resolving = true)
+        launch {
+            val isp = runCatching { detector.bestGuess() }.getOrNull()
+            _network.value = NetworkInfo(transport = transport, isp = isp, resolving = false)
+        }
+    }
 
     // ---- ayar setter'ları ----
     fun setOperationMode(mode: OperationMode) = launch { repo.setOperationMode(mode) }
@@ -110,7 +148,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val doh = DohResolver(s.effectiveDohUrl())
                 val tester = StrategyTester(viewModelScope, doh)
                 val detector = IspDetector(getApplication<Application>())
-                val family = (detector.detectFromSim() ?: s.selectedIsp).family
+                // Testin sıralaması da gerçek ağa göre yapılır: ev Wi-Fi'ında
+                // SIM operatörünün stratejileriyle başlamak zaman kaybıdır.
+                val family = detector.bestGuessFamily(s.selectedIsp)
                 val ordered = StrategyPool.orderedFor(family)
                 val hosts = StrategyTester.DEFAULT_BLOCKED_HOSTS + extraHosts(s)
 

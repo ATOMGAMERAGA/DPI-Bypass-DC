@@ -5,7 +5,12 @@
     android:height="108dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-    <group android:scaleX="0.66" android:scaleY="0.66" android:pivotX="256" android:pivotY="256">
+    <!-- translateY: renkli foreground ile aynı optik merkezleme düzeltmesi.
+         Ölçek 0.66 olduğu için kaydırma oransal olarak biraz büyük (16 * 0.66/0.56). -->
+    <group
+        android:scaleX="0.66" android:scaleY="0.66"
+        android:pivotX="256" android:pivotY="256"
+        android:translateY="19">
         <path
             android:pathData="M256 40 L432 104 V268 C432 372 360 440 256 472 C152 440 80 372 80 268 V104 Z"
             android:strokeColor="#FFFFFF"

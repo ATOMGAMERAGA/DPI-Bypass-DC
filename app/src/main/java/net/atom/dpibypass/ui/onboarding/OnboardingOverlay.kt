@@ -47,7 +47,9 @@ import androidx.compose.ui.unit.dp
 import net.atom.dpibypass.R
 import net.atom.dpibypass.ui.design.AppButton
 import net.atom.dpibypass.ui.design.ButtonTone
+import net.atom.dpibypass.ui.design.GlassLevel
 import net.atom.dpibypass.ui.design.GlassSurface
+import net.atom.dpibypass.ui.design.LocalShellBackdrop
 import net.atom.dpibypass.ui.design.VSpace
 import net.atom.dpibypass.ui.theme.LocalStateColors
 import net.atom.dpibypass.ui.theme.Motion
@@ -201,9 +203,10 @@ private fun OnboardingCard(
             .widthIn(max = 420.dp)
             .fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
-        blurRadius = 40.dp,
-        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
-        borderAlpha = 0.22f,
+        level = GlassLevel.Card,
+        // Sihirbaz kartı, arkasındaki TÜM uygulamayı (zemin + ekran) bulanıklaştırır.
+        backdrop = LocalShellBackdrop.current,
+        borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f),
     ) {
         Column(
             modifier = Modifier.padding(26.dp),

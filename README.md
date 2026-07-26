@@ -34,9 +34,11 @@ DPI motoru sıfırdan yazılmamıştır; kanıtlanmış açık kaynak bileşenle
 
 ## Özellikler
 
-- **Otomatik mod:** ISS'yi (SIM MCC+MNC / ASN) tespit eder, preset havuzundaki her
-  stratejiyi **tek tek test eder**, DoH ile çözüp TLS el sıkışması yaparak çalışanı
-  bulur ve **en düşük ping'liyi** seçer. Test canlı görünür (✓/✗ + ms).
+- **Otomatik mod:** ISS'yi **o an gerçekten bağlı olunan ağa göre** tespit eder
+  (Wi-Fi/kablolu ise dış IP'nin ASN'si, mobil veride SIM MCC+MNC — tünel açıkken
+  alttaki gerçek ağ okunur), preset havuzundaki her stratejiyi **tek tek test
+  eder**, DoH ile çözüp TLS el sıkışması yaparak çalışanı bulur ve **en düşük
+  ping'liyi** seçer. Test canlı görünür (✓/✗ + ms).
 - **Manuel mod:** ISS + preset seçilebilir; "Gelişmiş" alanına serbest ByeDPI
   argümanı girilebilir.
 - **DoH zorunlu:** Cloudflare / AdGuard / Google (IP ile bootstrap → DNS hijack aşılır).
@@ -44,7 +46,13 @@ DPI motoru sıfırdan yazılmamıştır; kanıtlanmış açık kaynak bileşenle
 - **Quick Settings tile:** Hızlı Panel'e eklenir, tek dokunuşla bağlar/keser; servis
   ölmüşse yeniden başlatır. İkon beyaz/tek renk.
 - **Foreground bildirim + watchdog:** Arka planda ölmez; ölürse otomatik toparlar.
+- **Samsung Now Bar / Android 16 Live Update:** tünel açıkken kilit ekranındaki Now
+  Bar'da ve durum çubuğu chip'inde canlı gösterge. Android 16'nın "promoted
+  ongoing" sözleşmesi eksiksiz uygulanır (ongoing + başlık + colorized + promote
+  edilebilir stil + IMPORTANCE_MIN üstü kanal + `requestPromotedOngoing`).
 - **Pil muafiyeti** kartı, açılışta otomatik bağlan, opsiyonel UDP/QUIC düşürme.
+- **Ayarlar → Bilgi:** uygulamanın kendi veri kullanımı (indirilen/gönderilen/toplam),
+  işlemci süresi, pil optimizasyonu durumu ve cihaz/sürüm özeti.
 
 ## Arayüz — "Aurora Ambient" tasarım sistemi
 
@@ -61,13 +69,28 @@ yay fiziğiyle hareket, güçlü renk-rolü hiyerarşisi) ve **One UI 8.5 Ambien
 - **Kahraman bağlan dairesi:** nefes alan ışıma, duruma göre dönen gradyan halka,
   test sırasında belirsiz ilerleme yayı, basınca fiziksel küçülme + haptik, canlı
   bağlı kalma süresi.
-- **Gerçek buzlu cam** yalnızca yüzen kabukta (başlık şeridi, dock, kahraman
-  daire, sihirbaz). Listeler ve kartlar opak yüzey basamaklarını kullanır —
-  kaydırma akıcı kalır, metin kontrastı garanti olur.
-- **Ana ekranda canlı ölçümler:** sağlayıcı, seçilen strateji, ölçülen gecikme ve
-  bağlı kalma süresi; altında hızlı işlem kartları.
-- **Etiketli yüzen dock**, yay ile kayan seçim göstergesi; segment denetimleri,
-  animasyonlu seçim işaretleri, kademeli (staggered) ekran girişleri.
+- **Her yerde gerçek buzlu cam (backdrop blur).** Yarı saydam düz renkler tamamen
+  kaldırıldı. Arka plan bir `GraphicsLayer`'a kaydedilir, her cam yüzey o katmanın
+  yalnızca kendi arkasına denk gelen dilimini kendi katmanına çizip `BlurEffect`
+  uygular; üstüne renk tonu, üst kenar parlaması ve şeklin konturundan çizilen saç
+  teli kenarlık biner. İki katman vardır: içerik kartları yalnızca aurora zeminini
+  örnekler, yüzen kabuk (dock, başlık şeridi, sihirbaz) zemin **ve** içeriği
+  örnekler — yani altlarından kayan yazılar gerçekten bulanıklaşır. Aurora katmanı
+  ekran dışı dokuya alınır, bulanıklık desteklemeyen cihazlarda (API < 31) cam
+  otomatik olarak yoğunlaşır.
+- **Ana ekranda canlı ölçümler:** taşıyıcı (Wi-Fi/mobil) rozeti, sağlayıcı, seçilen
+  strateji, ölçülen gecikme ve bağlı kalma süresi; altında hızlı işlem kartları.
+- **İkon-only yüzen dock:** dolu/boş ikon çiftiyle seçim, hedefe koşarken hareket
+  yönünde esneyip toparlanan (squash & stretch) gösterge ve sayfa kaydırıldıkça
+  küçülüp yerine oturan dock.
+- **Başlık devir teslimi:** büyük başlık küçülüp yukarı süzülürken çubuktaki küçük
+  başlık aşağıdan gelir; cam şerit ve alt çizgi ayrı bir eğriyle biraz geç katılır.
+  Kaydırma değeri kompozisyona hiç sızmaz (yalnızca çizim aşamasında okunur).
+- **Sekme değiştirince ekran hep en üstten başlar** — bıraktığınız kaydırma
+  konumunda uyanmazsınız.
+- Kart tonları, satır basma vurguları, ikon takasları, ölçüm değeri sayaçları,
+  rozetler, segment denetimleri, seçim işaretleri, metin alanı odağı, diyalog
+  girişleri ve liste yeniden sıralamaları — hepsi yay fiziğiyle animasyonlu.
 - **Uygulama listesinde gerçek uygulama ikonları**, arama, seçilenler en üstte.
 - **Haptik ayarı artık gerçekten çalışıyor:** bağlanma/seçim/sekme değişimi
   şiddeti farklı dokunsal geri bildirim verir; sistemde animasyonlar kapalıysa

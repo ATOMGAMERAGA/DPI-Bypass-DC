@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 16+ "Live Update" (promoted ongoing) bildirimi. Samsung One UI 8'in
+         Now Bar'ı bu mekanizmayı kullanır: izin olmadan tünel göstergesi Now Bar'a
+         ve durum çubuğu chip'ine düşmez. Normal (kullanıcıya sorulmayan) bir izindir
+         ve daha eski sürümlerde yok sayılır. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 

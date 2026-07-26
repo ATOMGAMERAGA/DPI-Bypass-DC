@@ -3,6 +3,7 @@ package net.atom.dpibypass.ui.settings
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings as AndroidSettings
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,21 +15,29 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.BatteryStd
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.DataUsage
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import net.atom.dpibypass.BuildConfig
 import net.atom.dpibypass.R
 import net.atom.dpibypass.data.ThemePref
@@ -55,8 +65,10 @@ import net.atom.dpibypass.ui.design.RowDivider
 import net.atom.dpibypass.ui.design.SectionHeader
 import net.atom.dpibypass.ui.design.Segment
 import net.atom.dpibypass.ui.design.SegmentedControl
+import net.atom.dpibypass.ui.design.StatTile
 import net.atom.dpibypass.ui.design.SwitchRow
 import net.atom.dpibypass.ui.design.VSpace
+import net.atom.dpibypass.util.AppUsage
 import net.atom.dpibypass.util.DeviceInfo
 
 // ---------------------------------------------------------------------------
@@ -102,12 +114,32 @@ fun SettingsScreen(viewModel: AppViewModel, onRequestTile: () -> Unit = {}) {
                 SwitchRow(
                     title = "Now Bar'da göster",
                     subtitle = "Tünel açıkken kilit ekranındaki Now Bar'da ve durum çubuğunda canlı " +
-                        "durum tutar; oradan tek dokunuşla kesebilirsiniz. (One UI ayarlarından " +
-                        "Now Bar açık olmalıdır.)",
+                        "bir gösterge tutar; oradan tek dokunuşla kesebilirsiniz.",
                     icon = Icons.Rounded.Notifications,
                     checked = settings.samsungVpnIndicator,
                     onCheckedChange = viewModel::setSamsungVpnIndicator,
                 )
+                AnimatedVisibility(visible = settings.samsungVpnIndicator) {
+                    Column {
+                        RowDivider()
+                        ListRow(
+                            title = "Now Bar görünmüyor mu?",
+                            subtitle = "Uygulama, Now Bar listesine ilk kez BAĞLANDIKTAN sonra düşer " +
+                                "(sistem, canlı bildirim gönderen uygulamaları o an tanır). Sonrasında " +
+                                "One UI'da Ayarlar → Kilit ekranı ve AOD → Now bar bölümünden açık " +
+                                "olduğundan emin olun. Bildirim ayarlarını buradan açabilirsiniz.",
+                            icon = Icons.Rounded.HelpOutline,
+                            onClick = { openNotificationSettings(context) },
+                            trailing = {
+                                Icon(
+                                    Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -250,6 +282,10 @@ fun SettingsScreen(viewModel: AppViewModel, onRequestTile: () -> Unit = {}) {
             }
         }
 
+        // ---- Bilgi ----
+        SectionHeader("Bilgi")
+        UsageCard()
+
         // ---- Hakkında ----
         SectionHeader("Hakkında")
         AppCard(modifier = Modifier.fillMaxWidth()) {
@@ -320,4 +356,140 @@ fun SettingsScreen(viewModel: AppViewModel, onRequestTile: () -> Unit = {}) {
             onDismiss = { dohPickerOpen = false },
         )
     }
+}
+
+// ---------------------------------------------------------------------------
+// Bilgi bölümü.
+//
+// "Bu uygulama ne kadar kaynak yiyor?" sorusunun DÜRÜST yanıtı. Android, bir
+// uygulamanın pil yüzdesini genel bir API ile vermez — o rakamı yalnızca sistem
+// hesaplar. O yüzden burada uydurma bir yüzde yerine gerçekten ölçülebilen
+// şeyler var: bu uygulamanın UID'sine yazılan ağ trafiği (tünel trafiği dâhil),
+// sürecin harcadığı işlemci süresi ve pil optimizasyonu durumu. Yüzdelik pay
+// isteyen kullanıcı tek dokunuşla sistemin kendi ekranına gider.
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun UsageCard() {
+    val context = LocalContext.current
+    val usage = rememberUsage()
+    val traffic = usage.traffic
+
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(
+                    label = "İndirilen",
+                    value = AppUsage.formatBytes(traffic.rxBytes),
+                    icon = Icons.Rounded.Download,
+                    modifier = Modifier.weight(1f),
+                )
+                StatTile(
+                    label = "Gönderilen",
+                    value = AppUsage.formatBytes(traffic.txBytes),
+                    icon = Icons.Rounded.Upload,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(
+                    label = "Toplam veri",
+                    value = AppUsage.formatBytes(traffic.totalBytes),
+                    icon = Icons.Rounded.DataUsage,
+                    valueColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                StatTile(
+                    label = "İşlemci süresi",
+                    value = AppUsage.formatDuration(usage.cpuTimeMs),
+                    icon = Icons.Rounded.Memory,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        RowDivider()
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+            Text(
+                text = if (traffic.supported) {
+                    "Veri sayaçları cihazın son açılışından beri bu uygulamaya (tünel trafiği " +
+                        "dâhil) yazılan baytları gösterir; cihaz yeniden başlayınca sıfırlanır."
+                } else {
+                    "Bu cihazda uygulama başına veri sayacı okunamıyor."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        RowDivider()
+        ListRow(
+            title = "Pil",
+            subtitle = buildString {
+                if (usage.batteryPercent >= 0) {
+                    append("Cihaz pili %${usage.batteryPercent}")
+                    if (usage.charging) append(" (şarj oluyor)")
+                    append(". ")
+                }
+                append(
+                    if (usage.unrestricted) {
+                        "Uygulama pil optimizasyonundan muaf — tünel arka planda kesilmez."
+                    } else {
+                        "Uygulama pil optimizasyonuna tabi; tünel arka planda kesilebilir."
+                    },
+                )
+                append(" Yüzdelik pil payını Android yalnızca kendi ekranında hesaplar; ")
+                append("dokunarak oraya gidin.")
+            },
+            icon = Icons.Rounded.BatteryStd,
+            iconTint = if (usage.unrestricted) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            onClick = { openAppDetails(context) },
+            trailing = {
+                Icon(
+                    Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
+        RowDivider()
+        ListRow(
+            title = "Cihaz ve sürüm",
+            subtitle = "${AppUsage.deviceSummary()}\nDPI Bypass ${BuildConfig.VERSION_NAME} " +
+                "(${BuildConfig.VERSION_CODE}) · ${AppUsage.abiSummary()}",
+            icon = Icons.Rounded.PhoneAndroid,
+        )
+    }
+}
+
+/** İki saniyede bir tazelenen kaynak kullanımı anlık görüntüsü. */
+@Composable
+private fun rememberUsage(): AppUsage.Snapshot {
+    val context = LocalContext.current
+    var snapshot by remember { mutableStateOf(AppUsage.snapshot(context)) }
+    LaunchedEffect(context) {
+        while (true) {
+            snapshot = AppUsage.snapshot(context)
+            delay(2000)
+        }
+    }
+    return snapshot
+}
+
+private fun openNotificationSettings(context: android.content.Context) {
+    val intent = Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName)
+    runCatching { context.startActivity(intent) }
+        .onFailure { openAppDetails(context) }
+}
+
+private fun openAppDetails(context: android.content.Context) {
+    val intent = Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.parse("package:${context.packageName}"))
+    runCatching { context.startActivity(intent) }
 }
