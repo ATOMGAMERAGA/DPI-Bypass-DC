@@ -21,7 +21,7 @@ on:
         required: false
         type: string
       debug_signing:
-        description: "DEBUG anahtarıyla imzala (keystore secret'larını atla, hızlı test APK'sı üret)"
+        description: "SADECE TEST: debug anahtarıyla imzala (tag/release oluşturmaz, APK yalnızca artifact olur — dağıtmayın)"
         required: false
         default: false
         type: boolean
@@ -83,36 +83,75 @@ jobs:
       - name: Testler (release öncesi kapı)
         run: ./gradlew testDebugUnitTest lintDebug --stacktrace
 
-      - name: Keystore'u hazırla (secret varsa ve debug_signing kapalıysa)
+      - name: Keystore'u hazırla
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           DEBUG_SIGNING: ${{ inputs.debug_signing }}
         run: |
           if [ "$DEBUG_SIGNING" = "true" ]; then
-            echo "::notice::'DEBUG anahtarıyla imzala' seçili — keystore secret'ları atlanıyor, APK debug anahtarıyla imzalanacak."
-          elif [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
-            echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
-            echo "Keystore hazır — RESMİ imza ile release derlenecek."
-          else
-            echo "::warning::KEYSTORE_BASE64 tanımlı değil. Release DEBUG anahtarıyla imzalanacak (kurulabilir, ama resmi dağıtım için KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD secret'larını tanımlayın, ya da bu çalıştırmada 'DEBUG anahtarıyla imzala' seçeneğini işaretleyin)."
+            echo "::warning::'DEBUG anahtarıyla imzala' seçili — üretilecek APK SADECE test içindir. \
+          Debug anahtarı her CI çalıştırmasında yeniden üretilir: imzası her sürümde farklı olur, \
+          kullanıcı üzerine güncelleme kuramaz ve Play Protect 'bilinmeyen geliştirici' uyarısı verir. Dağıtmayın."
+            echo "ALLOW_DEBUG_SIGNING=true" >> "$GITHUB_ENV"
+            echo "SIGNING_KIND=debug" >> "$GITHUB_ENV"
+            exit 0
           fi
+
+          MISSING=""
+          [ -n "$KEYSTORE_BASE64"  ] || MISSING="$MISSING KEYSTORE_BASE64"
+          [ -n "$KEYSTORE_PASSWORD" ] || MISSING="$MISSING KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS"        ] || MISSING="$MISSING KEY_ALIAS"
+          [ -n "$KEY_PASSWORD"     ] || MISSING="$MISSING KEY_PASSWORD"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Eksik imzalama secret'ı:$MISSING — Settings > Secrets and variables > Actions altında tanımlayın. Kurulum: docs/Imzalama-Rehberi.md. Sadece test APK'sı istiyorsanız 'DEBUG anahtarıyla imzala' kutusunu işaretleyin."
+            exit 1
+          fi
+
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # Keystore gerçekten açılabiliyor mu? (yanlış parola/bozuk base64 erken yakalanır)
+          keytool -list -keystore "$RUNNER_TEMP/release.keystore" \
+                  -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
+            || { echo "::error::Keystore açılamadı — KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS değerlerini kontrol edin."; exit 1; }
+
+          echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          echo "SIGNING_KIND=release" >> "$GITHUB_ENV"
+          echo "Keystore doğrulandı — RESMİ imza ile derlenecek."
 
       - name: Release APK derle
         env:
-          # RELEASE_STORE_FILE, keystore hazırsa önceki adımda GITHUB_ENV'e yazılır;
-          # yoksa tanımsız kalır ve build.gradle.kts debug imzasına düşer.
+          # RELEASE_STORE_FILE ve ALLOW_DEBUG_SIGNING önceki adımda GITHUB_ENV'e yazılır.
           RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: APK'yı adlandır
+      - name: İmzayı doğrula ve APK'yı adlandır
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/*.apk "dist/DPIBypass-${{ inputs.version }}.apk"
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -n1)
+          if [ "$SIGNING_KIND" = "debug" ]; then
+            OUT="dist/DPIBypass-${{ inputs.version }}-TEST-debugsigned.apk"
+          else
+            OUT="dist/DPIBypass-${{ inputs.version }}.apk"
+          fi
+          cp "$APK" "$OUT"
+          # İmza sahibini logla — hangi anahtarla çıktığı sürüm kaydında görünsün.
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          "$APKSIGNER" verify --print-certs "$OUT" | grep -E 'Signer #1 (certificate DN|certificate SHA-256 digest)' || true
+
+      # --- Debug imzalı test çalıştırması: sürüm bump / tag / release YOK. ---
+      - name: Test APK'sını artifact olarak yükle (yalnızca debug imza)
+        if: ${{ inputs.debug_signing }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: DPIBypass-${{ inputs.version }}-TEST-debugsigned
+          path: dist/*.apk
 
       - name: Sürüm bump commit'i
+        if: ${{ !inputs.debug_signing }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -121,11 +160,13 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
 
       - name: Etiket oluştur
+        if: ${{ !inputs.debug_signing }}
         run: |
           git tag "v${{ inputs.version }}"
           git push origin "v${{ inputs.version }}"
 
       - name: GitHub Release yayınla
+        if: ${{ !inputs.debug_signing }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v${{ inputs.version }}"
