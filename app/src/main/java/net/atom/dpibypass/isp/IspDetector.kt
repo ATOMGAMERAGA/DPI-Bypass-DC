@@ -1,6 +1,9 @@
 package net.atom.dpibypass.isp
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.telephony.TelephonyManager
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -9,12 +12,43 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
+/** Şu an gerçekten hangi taşıyıcı üzerinden internete çıkıyoruz? */
+enum class Transport {
+    WiFi,
+    Cellular,
+    Ethernet,
+    Unknown;
+
+    val displayName: String
+        get() = when (this) {
+            WiFi -> "Wi-Fi"
+            Cellular -> "Mobil veri"
+            Ethernet -> "Kablolu"
+            Unknown -> "Bilinmiyor"
+        }
+}
+
 /**
  * ISS parmak izi — kesin değil, sadece strateji havuzunu önceliklendirmek için
  * ipucu. Nihai karar canlı testtedir (StrategyTester).
  *
- * - Mobil veri: SIM MCC+MNC (TelephonyManager.simOperator).
- * - Wi-Fi / ev: dış IP'nin ASN/ISP org adı (hafif lookup).
+ * ---------------------------------------------------------------------------
+ * ÖNEMLİ DÜZELTME: SIM ≠ İNTERNET SAĞLAYICISI
+ * ---------------------------------------------------------------------------
+ * Eski davranış "önce SIM'e bak, olmazsa ASN'ye bak" idi. SIM takılı her
+ * telefonda SIM okuması BAŞARILI olduğu için, ev Wi-Fi'ında bir Türk Telekom
+ * modemine bağlıyken bile uygulama "Vodafone Mobil" diyordu — yani gerçekte
+ * kullanılan ağı hiç sormuyordu. Yanlış ISS, yanlış strateji sıralaması demek;
+ * yani sadece kozmetik bir hata değil, testin daha yavaş sonuçlanması demek.
+ *
+ * Yeni davranış: ÖNCE AKTİF TAŞIYICIYA bakılır.
+ *   * Wi-Fi / kablolu  → yalnızca dış IP'nin ASN/org adı kullanılır. SIM'e hiç
+ *     bakılmaz; o an SIM'in internetle bir ilgisi yoktur.
+ *   * Mobil veri       → SIM (MCC+MNC) birincil, ASN yedek.
+ *   * Bilinmiyor       → ASN birincil, SIM yedek.
+ *
+ * Tünel açıkken "aktif ağ" VPN'in kendisidir; bu yüzden VPN taşıyıcısı görülünce
+ * altta yatan gerçek ağ aranır.
  */
 class IspDetector(private val context: Context) {
 
@@ -24,7 +58,41 @@ class IspDetector(private val context: Context) {
         .callTimeout(5, TimeUnit.SECONDS)
         .build()
 
-    /** SIM operatöründen (MCC+MNC) ISS tahmini. Mobil veride güvenilir. */
+    /** O an internete çıkılan taşıyıcı. VPN aktifse alttaki gerçek ağa bakar. */
+    fun activeTransport(): Transport {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return Transport.Unknown
+        val caps = underlyingCapabilities(cm) ?: return Transport.Unknown
+        return when {
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Transport.WiFi
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> Transport.Ethernet
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Transport.Cellular
+            else -> Transport.Unknown
+        }
+    }
+
+    /**
+     * Aktif ağın yetenekleri. Aktif ağ bir VPN ise (yani kendi tünelimiz açıksa)
+     * VPN olmayan, internet yeteneği olan ilk ağa düşülür — yoksa "Wi-Fi'dayım
+     * ama tünel açık" durumunda taşıyıcı hep VPN görünürdü.
+     */
+    private fun underlyingCapabilities(cm: ConnectivityManager): NetworkCapabilities? {
+        val active: Network? = cm.activeNetwork
+        val activeCaps = active?.let { runCatching { cm.getNetworkCapabilities(it) }.getOrNull() }
+        if (activeCaps != null && !activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+            return activeCaps
+        }
+        val networks = runCatching { cm.allNetworks }.getOrDefault(emptyArray())
+        return networks
+            .asSequence()
+            .mapNotNull { runCatching { cm.getNetworkCapabilities(it) }.getOrNull() }
+            .filter { !it.hasTransport(NetworkCapabilities.TRANSPORT_VPN) }
+            .filter { it.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) }
+            .firstOrNull()
+            ?: activeCaps
+    }
+
+    /** SIM operatöründen (MCC+MNC) ISS tahmini. YALNIZCA mobil veride anlamlıdır. */
     fun detectFromSim(): Isp? {
         return try {
             val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
@@ -48,9 +116,24 @@ class IspDetector(private val context: Context) {
     }
 
     /**
-     * En iyi tahmin: önce SIM, yoksa ASN, yoksa null.
+     * En iyi tahmin — o an gerçekten bağlı olunan ağa göre.
      */
-    suspend fun bestGuess(): Isp? = detectFromSim() ?: detectFromAsn()
+    suspend fun bestGuess(): Isp? {
+        val transport = activeTransport()
+        Log.d(TAG, "activeTransport=$transport")
+        return when (transport) {
+            // Kablosuz/kablolu ağda SIM'in hiçbir söz hakkı yok.
+            Transport.WiFi, Transport.Ethernet -> detectFromAsn()
+            Transport.Cellular -> detectFromSim() ?: detectFromAsn()
+            Transport.Unknown -> detectFromAsn() ?: detectFromSim()
+        }
+    }
+
+    /**
+     * Strateji havuzunu sıralamak için DPI ailesi. [bestGuess] ile aynı mantığı
+     * kullanır; çağıranların tek tek taşıyıcı kontrolü yapmasına gerek kalmaz.
+     */
+    suspend fun bestGuessFamily(fallback: Isp): IspFamily = (bestGuess() ?: fallback).family
 
     private fun fetchOrg(): String? {
         // ipinfo.io/org → "AS9121 Turk Telekom" gibi bir dize döner.

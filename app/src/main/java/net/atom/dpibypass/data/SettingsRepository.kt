@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import net.atom.dpibypass.dns.DohProvider
 import net.atom.dpibypass.isp.Isp
+import net.atom.dpibypass.util.DeviceInfo
 import org.json.JSONObject
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "dpi_settings")
@@ -67,7 +68,10 @@ class SettingsRepository(private val context: Context) {
         disableQuic = this[Keys.DISABLE_QUIC] ?: false,
         extraBlockedHosts = this[Keys.EXTRA_BLOCKED_HOSTS] ?: "",
         onboardingDone = this[Keys.ONBOARDING_DONE] ?: false,
-        samsungVpnIndicator = this[Keys.SAMSUNG_VPN_INDICATOR] ?: false,
+        // Samsung'da VARSAYILAN AÇIK: ayar zaten yalnızca Samsung'da görünüyor ve
+        // Now Bar göstergesi bu cihazlarda beklenen davranış. Kullanıcı kapatana
+        // kadar canlı gösterge istenir.
+        samsungVpnIndicator = this[Keys.SAMSUNG_VPN_INDICATOR] ?: DeviceInfo.isSamsung(),
     )
 
     suspend fun setOperationMode(mode: OperationMode) = put(Keys.OPERATION_MODE, mode.name)

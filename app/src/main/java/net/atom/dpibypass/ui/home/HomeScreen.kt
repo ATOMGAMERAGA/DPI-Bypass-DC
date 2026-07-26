@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -54,6 +55,8 @@ import net.atom.dpibypass.ui.design.ContentMaxWidth
 import net.atom.dpibypass.ui.design.DockSpacing
 import net.atom.dpibypass.ui.design.IconBubble
 import net.atom.dpibypass.ui.design.ListRow
+import net.atom.dpibypass.ui.design.LocalChrome
+import net.atom.dpibypass.ui.design.PublishScroll
 import net.atom.dpibypass.ui.design.RowDivider
 import net.atom.dpibypass.ui.design.ScreenPadding
 import net.atom.dpibypass.ui.design.SectionHeader
@@ -65,7 +68,7 @@ import net.atom.dpibypass.ui.design.connectionHeadline
 import net.atom.dpibypass.ui.design.connectionSupport
 import net.atom.dpibypass.ui.design.entrance
 import net.atom.dpibypass.ui.design.formatUptime
-import net.atom.dpibypass.ui.design.rememberCollapseFraction
+import net.atom.dpibypass.ui.design.upperTr
 import net.atom.dpibypass.ui.design.rememberEntrance
 import net.atom.dpibypass.ui.design.rememberHaptics
 import net.atom.dpibypass.ui.nav.Dest
@@ -98,9 +101,16 @@ fun HomeScreen(
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val connectedSince by viewModel.connectedSince.collectAsStateWithLifecycle()
+    val network by viewModel.network.collectAsStateWithLifecycle()
+
+    // Bağlantı durumu her değiştiğinde ağ yeniden çözülür: Wi-Fi'dan mobile
+    // geçmiş olabiliriz ve gösterilen sağlayıcı bayatlamamalı.
+    LaunchedEffect(state) { viewModel.refreshNetwork() }
 
     val scroll = rememberScrollState()
-    val collapse = rememberCollapseFraction(scroll)
+    PublishScroll(scroll)
+    val chrome = LocalChrome.current
+    val brandFadePx = with(LocalDensity.current) { 56.dp.toPx() }
     val entranceState = rememberEntrance()
     val entrance = { entranceState.value }
     val haptics = rememberHaptics()
@@ -124,7 +134,7 @@ fun HomeScreen(
         settings.selectedApps == setOf(AppViewModel.DISCORD_PACKAGE)
     val accent = connectionColor(state)
 
-    AppScaffold(title = "DPI Bypass", collapseFraction = collapse) { padding ->
+    AppScaffold(title = "DPI Bypass") { padding ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
                 modifier = Modifier
@@ -144,7 +154,11 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .entrance(entrance, 0)
-                        .graphicsLayer { alpha = (1f - collapse * 1.6f).coerceIn(0f, 1f) },
+                        .graphicsLayer {
+                            val c = chrome.collapse(brandFadePx)
+                            alpha = (1f - c * 1.6f).coerceIn(0f, 1f)
+                            translationY = -c * 10.dp.toPx()
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Image(
@@ -177,9 +191,11 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     TagBadge(if (auto) "OTOMATİK" else "MANUEL", color = MaterialTheme.colorScheme.primary)
+                    // Taşıyıcı rozeti: "hangi ağdayım" sorusunun ilk yarısı.
+                    // Sağlayıcı adı (ikinci yarısı) hemen yanında.
                     TagBadge(
-                        text = profile?.ispName ?: settings.selectedIsp.displayName,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = network.transport.displayName.upperTr(),
+                        color = MaterialTheme.colorScheme.secondary,
                     )
                     if (discordOnly) {
                         TagBadge("YALNIZCA DISCORD", color = MaterialTheme.colorScheme.secondary)
@@ -261,7 +277,10 @@ fun HomeScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             StatTile(
                                 label = "Sağlayıcı",
-                                value = profile?.ispName ?: settings.selectedIsp.displayName,
+                                // Bağlıyken tünelin kullandığı sağlayıcı; değilken
+                                // o an bağlı olunan ağdan canlı çözülen sağlayıcı.
+                                value = profile?.ispName
+                                    ?: network.label(settings.selectedIsp.displayName),
                                 icon = Icons.Rounded.Router,
                                 modifier = Modifier.weight(1f),
                             )

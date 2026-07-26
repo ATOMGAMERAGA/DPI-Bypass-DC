@@ -1,12 +1,15 @@
 package net.atom.dpibypass.ui.design
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,7 +26,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,13 +58,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import net.atom.dpibypass.ui.theme.LocalStateColors
 import net.atom.dpibypass.ui.theme.Motion
 import net.atom.dpibypass.ui.theme.PillShape
-import kotlin.math.roundToInt
+import kotlin.math.abs
+import kotlin.math.min
 
 // ---------------------------------------------------------------------------
 // Etkileşim öğeleri.
@@ -121,11 +124,19 @@ fun AppButton(
         ButtonTone.Ghost -> scheme.onSurfaceVariant
         ButtonTone.Danger -> scheme.error
     }
+    // Etkin/etkisiz geçişi ani değil: düğme "sönerek" devre dışı kalır, böylece
+    // neden tıklanamadığı (ör. test sürüyor) gözle takip edilebilir.
+    val enabledAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.42f,
+        animationSpec = Motion.effectsDefault(),
+        label = "buttonEnabled",
+    )
 
     Box(
         modifier = modifier
             .pressScale(interaction)
             .heightIn(min = 52.dp)
+            .graphicsLayer { alpha = enabledAlpha }
             .clip(PillShape)
             .background(background, PillShape)
             .then(
@@ -135,7 +146,6 @@ fun AppButton(
                     Modifier
                 },
             )
-            .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -154,14 +164,26 @@ fun AppButton(
             if (icon != null) {
                 Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(19.dp))
             }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelLarge,
-                color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
+            // Etiket değişince (ör. "Testi başlat" → "Test sürüyor…") yazı
+            // çaprazlama geçer; düğme aynı düğme olarak kalır.
+            AnimatedContent(
+                targetState = text,
+                transitionSpec = {
+                    (fadeIn(Motion.effectsDefault()) + scaleIn(initialScale = 0.92f)) togetherWith
+                        (fadeOut(Motion.effectsFast()) + scaleOut(targetScale = 1.06f))
+                },
+                contentAlignment = Alignment.Center,
+                label = "buttonLabel",
+            ) { current ->
+                Text(
+                    text = current,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
@@ -192,9 +214,9 @@ fun <T> SegmentedControl(
     val index = options.indexOfFirst { it.value == selected }.coerceAtLeast(0)
     val itemWidthPx = if (options.isEmpty()) 0f else widthPx.toFloat() / options.size
 
-    val indicatorX by animateFloatAsState(
+    val indicatorX = animateFloatAsState(
         targetValue = itemWidthPx * index,
-        animationSpec = Motion.spatialDefault(),
+        animationSpec = Motion.indicator(),
         label = "segmentIndicator",
     )
 
@@ -203,16 +225,28 @@ fun <T> SegmentedControl(
             .fillMaxWidth()
             .height(52.dp)
             .onSizeChanged { widthPx = it.width }
-            .clip(PillShape)
-            .background(scheme.surfaceContainer.copy(alpha = 0.9f))
-            .border(1.dp, scheme.outline, PillShape),
+            .glass(
+                shape = PillShape,
+                level = GlassLevel.Inset,
+                tintColor = scheme.surfaceContainer,
+            ),
     ) {
         if (widthPx > 0) {
             Box(
                 modifier = Modifier
-                    .offset { IntOffset(indicatorX.roundToInt(), 0) }
                     .width(with(density) { itemWidthPx.toDp() })
                     .fillMaxHeight()
+                    .graphicsLayer {
+                        translationX = indicatorX.value
+                        // Gösterge hedefe koşarken yatayda esner: hangi yöne
+                        // gittiği, nereye varacağı hareketin kendisinden okunur.
+                        val stretch = min(
+                            abs(itemWidthPx * index - indicatorX.value) / itemWidthPx.coerceAtLeast(1f),
+                            1f,
+                        )
+                        scaleX = 1f + 0.10f * stretch
+                        scaleY = 1f - 0.08f * stretch
+                    }
                     .padding(4.dp)
                     .clip(PillShape)
                     .background(stateColors.brandGradient(), PillShape),
@@ -226,6 +260,11 @@ fun <T> SegmentedControl(
                     animationSpec = Motion.effectsDefault(),
                     label = "segmentLabel",
                 )
+                val emphasis = animateFloatAsState(
+                    targetValue = if (isSelected) 1f else 0f,
+                    animationSpec = Motion.spatialDefault(),
+                    label = "segmentEmphasis",
+                )
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -236,6 +275,13 @@ fun <T> SegmentedControl(
                                 haptics.select()
                                 onSelect(option.value)
                             }
+                        }
+                        .graphicsLayer {
+                            // Seçili seçenek bir tık büyür: gösterge kaymadan önce
+                            // bile hangi seçeneğin aktif olduğu belli olur.
+                            val s = 1f + 0.05f * emphasis.value
+                            scaleX = s
+                            scaleY = s
                         },
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
@@ -257,7 +303,11 @@ fun <T> SegmentedControl(
     }
 }
 
-/** Durum rozeti: küçük renkli etiket (BAĞLI, OTO, P2 …). */
+/**
+ * Durum rozeti: küçük renkli etiket (BAĞLI, OTO, P2 …). Hem rengi hem metni
+ * canlı veriden gelir, o yüzden ikisi de animasyonlu değişir — rozet "yerinde
+ * güncellenir", kaybolup yeniden belirmez.
+ */
 @Composable
 fun TagBadge(
     text: String,
@@ -265,45 +315,76 @@ fun TagBadge(
     color: Color = MaterialTheme.colorScheme.primary,
     filled: Boolean = false,
 ) {
+    val animated by animateColorAsState(color, Motion.effectsDefault(), label = "badgeColor")
     Box(
         modifier = modifier
             .clip(PillShape)
-            .background(if (filled) color else color.copy(alpha = 0.16f))
+            .background(if (filled) animated else animated.copy(alpha = 0.16f))
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (filled) Color.White else color,
-            maxLines = 1,
-        )
+        AnimatedContent(
+            targetState = text,
+            transitionSpec = {
+                (fadeIn(Motion.effectsDefault()) + scaleIn(initialScale = 0.86f)) togetherWith
+                    (fadeOut(Motion.effectsFast()) + scaleOut(targetScale = 1.1f))
+            },
+            contentAlignment = Alignment.Center,
+            label = "badgeText",
+        ) { current ->
+            Text(
+                text = current,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (filled) Color.White else animated,
+                maxLines = 1,
+            )
+        }
     }
 }
 
-/** Seçim işareti — seçilince yay ile belirir, seçim kaldırılınca söner. */
+/**
+ * Seçim işareti. Kutu dolarken işaret hafifçe dönerek yerine oturur: "tık"
+ * hissini veren şey, iki hareketin (dolma + dönme) aynı anda bitmesidir.
+ */
 @Composable
 fun SelectionCheck(selected: Boolean, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
+    val fill = animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = Motion.bouncy(),
+        label = "checkFill",
+    )
+    val container by animateColorAsState(
+        targetValue = if (selected) scheme.primary else Color.Transparent,
+        animationSpec = Motion.effectsDefault(),
+        label = "checkContainer",
+    )
+    val ring by animateColorAsState(
+        targetValue = if (selected) Color.Transparent else scheme.outline,
+        animationSpec = Motion.effectsDefault(),
+        label = "checkRing",
+    )
     Box(
         modifier = modifier
             .size(26.dp)
             .clip(CircleShape)
-            .background(if (selected) scheme.primary else Color.Transparent)
-            .border(if (selected) 0.dp else 1.5.dp, scheme.outline, CircleShape),
+            .background(container)
+            .border(1.5.dp, ring, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        AnimatedVisibility(
-            visible = selected,
-            enter = scaleIn(animationSpec = Motion.bouncy()) + fadeIn(animationSpec = Motion.effectsFast()),
-            exit = scaleOut(animationSpec = Motion.spatialFast()) + fadeOut(animationSpec = Motion.effectsFast()),
-        ) {
-            Icon(
-                Icons.Rounded.Check,
-                contentDescription = null,
-                tint = scheme.onPrimary,
-                modifier = Modifier.size(16.dp),
-            )
-        }
+        Icon(
+            Icons.Rounded.Check,
+            contentDescription = null,
+            tint = scheme.onPrimary,
+            modifier = Modifier
+                .size(16.dp)
+                .graphicsLayer {
+                    val f = fill.value
+                    alpha = f
+                    scaleX = f
+                    scaleY = f
+                    rotationZ = (1f - f) * -45f
+                },
+        )
     }
 }
 
@@ -327,9 +408,16 @@ fun AppTextField(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val borderColor by animateColorAsState(
-        targetValue = if (focused) scheme.primary else scheme.outline,
+        targetValue = if (focused) scheme.primary else scheme.onSurface.copy(alpha = 0.14f),
         animationSpec = Motion.effectsDefault(),
         label = "fieldBorder",
+    )
+    // Odaklanınca kenarlık hem renk değiştirir hem KALINLAŞIR: iki sinyal
+    // birlikte, tek başına renge göre çok daha okunur bir odak göstergesidir.
+    val borderWidth by animateDpAsState(
+        targetValue = if (focused) 1.8.dp else 1.dp,
+        animationSpec = Motion.spatialFast(),
+        label = "fieldBorderWidth",
     )
 
     val textStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -350,9 +438,13 @@ fun AppTextField(
         decorationBox = { innerTextField ->
             Row(
                 modifier = Modifier
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(scheme.surfaceContainerHigh.copy(alpha = 0.8f))
-                    .border(1.4.dp, borderColor, MaterialTheme.shapes.medium)
+                    .glass(
+                        shape = MaterialTheme.shapes.medium,
+                        level = GlassLevel.Inset,
+                        tintColor = scheme.surfaceContainerHigh,
+                        borderColor = borderColor,
+                        borderWidth = borderWidth,
+                    )
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -399,10 +491,28 @@ fun <T> ChoiceDialog(
     onDismiss: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    // Diyalog AYRI bir pencerede çizilir; ana pencerenin arka plan katmanını
+    // örnekleyemez. Bu yüzden burada cam yerine tam opak yüzey kullanılır —
+    // sahte bir saydamlık, gerçek camın yanında ucuz durur.
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val appear by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = Motion.spatialDefault(),
+        label = "dialogAppear",
+    )
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = appear
+                    val s = 0.92f + 0.08f * appear
+                    scaleX = s
+                    scaleY = s
+                    translationY = (1f - appear) * 18.dp.toPx()
+                }
                 .clip(MaterialTheme.shapes.extraLarge)
                 .background(scheme.surfaceContainerHigh)
                 .border(1.dp, scheme.outline, MaterialTheme.shapes.extraLarge)
@@ -422,10 +532,17 @@ fun <T> ChoiceDialog(
             ) {
                 options.forEach { (value, label) ->
                     val isSelected = value == selected
+                    val rowInteraction = remember(value) { MutableInteractionSource() }
+                    val labelColor by animateColorAsState(
+                        targetValue = if (isSelected) scheme.primary else scheme.onSurface,
+                        animationSpec = Motion.effectsDefault(),
+                        label = "dialogRow",
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .pressScale(rowInteraction, pressedScale = 0.98f)
+                            .clickable(interactionSource = rowInteraction, indication = null) {
                                 onSelect(value)
                                 onDismiss()
                             }
@@ -435,10 +552,14 @@ fun <T> ChoiceDialog(
                         Text(
                             text = label,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = if (isSelected) scheme.primary else scheme.onSurface,
+                            color = labelColor,
                             modifier = Modifier.weight(1f),
                         )
-                        if (isSelected) {
+                        AnimatedVisibility(
+                            visible = isSelected,
+                            enter = scaleIn(animationSpec = Motion.bouncy()) + fadeIn(Motion.effectsFast()),
+                            exit = scaleOut(animationSpec = Motion.spatialFast()) + fadeOut(Motion.effectsFast()),
+                        ) {
                             Icon(
                                 Icons.Rounded.Check,
                                 contentDescription = null,

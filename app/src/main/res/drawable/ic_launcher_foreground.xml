@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Adaptive icon foreground: logo içeriği güvenli bölgeye (safe zone) ölçeklenir.
-     Kalkan içi şeffaftır; arka plan gradyan katmanı içeriden görünür. -->
+     Kalkan içi şeffaftır; arka plan gradyan katmanı içeriden görünür.
+
+     OPTİK MERKEZLEME: kalkanın sınırlayıcı kutusu (y 33..479) tam ortalıdır, ama
+     mürekkebin kendisi öyle değil — kalkan üstte tam genişlikte, altta sivri
+     uçla biter. Alan ağırlık merkezi kutu merkezinin ~46 birim ÜSTÜNDE kalır,
+     bu yüzden ikon geometrik olarak ortalanmış olmasına rağmen gözle YUKARIDA
+     duruyormuş gibi görünüyordu (launcher'daki dairesel maskede daha da belirgin).
+     translateY ile içerik aşağı kaydırılıp kütle merkezi maskenin merkezine
+     yaklaştırılır. Ölçekten (0.56) sonra uygulandığı için değer küçüktür.
+
+     Monokrom katman (ic_launcher_monochrome) aynı düzeltmeyi kendi ölçeğine göre
+     yapar; iki katman birbirinin üstüne birebir oturmalıdır. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -8,7 +19,10 @@
     android:viewportWidth="512"
     android:viewportHeight="512">
 
-    <group android:scaleX="0.56" android:scaleY="0.56" android:pivotX="256" android:pivotY="256">
+    <group
+        android:scaleX="0.56" android:scaleY="0.56"
+        android:pivotX="256" android:pivotY="256"
+        android:translateY="16">
 
         <path
             android:pathData="M256 40 L432 104 V268 C432 372 360 440 256 472 C152 440 80 372 80 268 V104 Z"

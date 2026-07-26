@@ -1,6 +1,7 @@
 package net.atom.dpibypass.ui.apps
 
 import android.util.LruCache
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,15 +60,18 @@ import net.atom.dpibypass.ui.design.AppTextField
 import net.atom.dpibypass.ui.design.ContentMaxWidth
 import net.atom.dpibypass.ui.design.DockSpacing
 import net.atom.dpibypass.ui.design.PageHeader
+import net.atom.dpibypass.ui.design.PublishScroll
 import net.atom.dpibypass.ui.design.ScreenPadding
 import net.atom.dpibypass.ui.design.SelectionCheck
 import net.atom.dpibypass.ui.design.TagBadge
 import net.atom.dpibypass.ui.design.VSpace
 import net.atom.dpibypass.ui.design.Segment
 import net.atom.dpibypass.ui.design.SegmentedControl
+import net.atom.dpibypass.ui.design.glass
+import net.atom.dpibypass.ui.design.GlassLevel
 import net.atom.dpibypass.ui.design.pressScale
-import net.atom.dpibypass.ui.design.rememberCollapseFraction
 import net.atom.dpibypass.ui.design.rememberHaptics
+import net.atom.dpibypass.ui.theme.Motion
 
 // ---------------------------------------------------------------------------
 // Uygulama ayırma (split tunneling) ekranı.
@@ -93,7 +98,7 @@ fun AppsScreen(viewModel: AppViewModel) {
     LaunchedEffect(Unit) { viewModel.loadInstalledApps() }
 
     val listState = rememberLazyListState()
-    val collapse = rememberCollapseFraction(listState)
+    PublishScroll(listState)
     val haptics = rememberHaptics()
 
     val listEnabled = settings.appFilterMode != AppFilterMode.All
@@ -112,7 +117,7 @@ fun AppsScreen(viewModel: AppViewModel) {
         )
     }
 
-    AppScaffold(title = "Uygulamalar", collapseFraction = collapse) { padding ->
+    AppScaffold(title = "Uygulamalar") { padding ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 state = listState,
@@ -131,7 +136,6 @@ fun AppsScreen(viewModel: AppViewModel) {
                     PageHeader(
                         title = "Uygulamalar",
                         subtitle = "Hangi uygulamaların tünelden geçeceğini seçin. Seçmezseniz tümü geçer.",
-                        collapseFraction = collapse,
                     )
                 }
 
@@ -258,6 +262,13 @@ fun AppsScreen(viewModel: AppViewModel) {
                                 haptics.select()
                                 viewModel.toggleApp(app.packageName, it)
                             },
+                            // Seçilenler listenin başına taşınır; satır ışınlanmak
+                            // yerine yeni yerine kayar, göz onu takip eder.
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = Motion.effectsDefault(),
+                                placementSpec = Motion.spatialDefault(),
+                                fadeOutSpec = Motion.effectsFast(),
+                            ),
                         )
                     }
                 }
@@ -267,17 +278,34 @@ fun AppsScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-private fun AppRow(app: AppEntry, checked: Boolean, onToggle: (Boolean) -> Unit) {
+private fun AppRow(
+    app: AppEntry,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val interaction = remember { MutableInteractionSource() }
     val scheme = MaterialTheme.colorScheme
+    val tint by animateColorAsState(
+        targetValue = if (checked) lerp(scheme.surface, scheme.primary, 0.26f) else scheme.surface,
+        animationSpec = Motion.effectsDefault(),
+        label = "appRowTint",
+    )
+    val border by animateColorAsState(
+        targetValue = if (checked) scheme.primary.copy(alpha = 0.45f) else scheme.onSurface.copy(alpha = 0.10f),
+        animationSpec = Motion.effectsDefault(),
+        label = "appRowBorder",
+    )
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .pressScale(interaction)
-            .clip(MaterialTheme.shapes.medium)
-            .background(
-                if (checked) scheme.primary.copy(alpha = 0.12f) else scheme.surfaceContainer.copy(alpha = 0.85f),
+            .glass(
+                shape = MaterialTheme.shapes.medium,
+                level = GlassLevel.Card,
+                tintColor = tint,
+                borderColor = border,
             )
             .clickable(interactionSource = interaction, indication = null) { onToggle(!checked) }
             .padding(horizontal = 14.dp, vertical = 11.dp),

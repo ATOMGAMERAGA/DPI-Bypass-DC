@@ -168,7 +168,9 @@ class DpiVpnService : LifecycleVpnService() {
         val doh = DohResolver(settings.effectiveDohUrl())
         val tester = StrategyTester(lifecycleScope, doh)
         val detector = IspDetector(applicationContext)
-        val family = (detector.detectFromSim() ?: settings.selectedIsp).family
+        // O an GERÇEKTEN bağlı olunan ağa göre: Wi-Fi'daysak SIM'e değil, dış
+        // IP'nin ASN'sine bakılır (bkz. IspDetector).
+        val family = detector.bestGuessFamily(settings.selectedIsp)
         val ordered = StrategyPool.orderedFor(family)
         val hosts = StrategyTester.DEFAULT_BLOCKED_HOSTS + extraHosts(settings)
         val best = tester.run(ordered, hosts)
@@ -385,8 +387,11 @@ class DpiVpnService : LifecycleVpnService() {
             getString(R.string.app_name),
             content,
             connected,
-            persistent = persistentIndicator,
+            liveIndicator = persistentIndicator,
             connectedSinceMs = if (connectedSince > 0L) connectedSince else System.currentTimeMillis(),
+            // Durum çubuğu "chip"i için en kısa özet: bağlıysa strateji kimliği,
+            // değilse tek kelimelik durum.
+            shortStatus = if (connected) currentProfile?.strategyId ?: "Açık" else "Kuruluyor",
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(

@@ -1,10 +1,18 @@
 package net.atom.dpibypass.ui.mode
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -167,7 +176,11 @@ fun ModeScreen(viewModel: AppViewModel) {
                         },
                         onClick = { viewModel.setAdvancedEnabled(!settings.advancedEnabled) },
                     )
-                    AnimatedVisibility(visible = settings.advancedEnabled) {
+                    AnimatedVisibility(
+                        visible = settings.advancedEnabled,
+                        enter = expandVertically(Motion.spatialDefault()) + fadeIn(Motion.effectsDefault()),
+                        exit = shrinkVertically(Motion.spatialFast()) + fadeOut(Motion.effectsFast()),
+                    ) {
                         Column {
                             RowDivider()
                             Box(Modifier.padding(16.dp)) {
@@ -219,6 +232,17 @@ private fun PresetCard(
     onClick: () -> Unit,
 ) {
     val stateColors = LocalStateColors.current
+    // Seçim tek bir yayla sürülür: rozet büyür, gradyan belirir, yazı beyazlar.
+    val selection = animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = Motion.spatialDefault(),
+        label = "presetSelection",
+    )
+    val badgeText by animateColorAsState(
+        targetValue = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = Motion.effectsDefault(),
+        label = "presetBadgeText",
+    )
     AppCard(
         modifier = Modifier.fillMaxWidth(),
         tone = if (selected) CardTone.Accent else CardTone.Plain,
@@ -231,21 +255,27 @@ private fun PresetCard(
             Box(
                 modifier = Modifier
                     .size(44.dp)
+                    .graphicsLayer {
+                        val s = 1f + 0.08f * selection.value
+                        scaleX = s
+                        scaleY = s
+                    }
                     .clip(CircleShape)
-                    .then(
-                        if (selected) {
-                            Modifier.background(stateColors.brandGradient(), CircleShape)
-                        } else {
-                            Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape)
-                        },
-                    ),
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
+                // Gradyan üstte, opaklığı seçimle akıyor: renk "sıçramaz".
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .graphicsLayer { alpha = selection.value }
+                        .background(stateColors.brandGradient(), CircleShape),
+                )
                 Text(
                     text = id,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = badgeText,
                 )
             }
             Spacer(Modifier.width(13.dp))
@@ -312,10 +342,25 @@ private fun LiveTestCard(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            AnimatedVisibility(visible = results.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = results.isNotEmpty(),
+                enter = expandVertically(Motion.spatialDefault()) + fadeIn(Motion.effectsDefault()),
+                exit = shrinkVertically(Motion.spatialFast()) + fadeOut(Motion.effectsFast()),
+            ) {
                 Column {
                     VSpace(16.dp)
-                    // İlerleme çubuğu
+                    // İlerleme çubuğu. Test sürerken çubuğun ucunda yumuşak bir
+                    // nabız atar: sayı değişmese bile "çalışıyor" bilgisi akar.
+                    val pulse = rememberInfiniteTransition(label = "testPulse")
+                        .animateFloat(
+                            initialValue = 0.55f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                tween(900, easing = LinearEasing),
+                                RepeatMode.Reverse,
+                            ),
+                            label = "testPulseAlpha",
+                        )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -327,6 +372,7 @@ private fun LiveTestCard(
                             modifier = Modifier
                                 .fillMaxWidth(progress.coerceIn(0f, 1f))
                                 .height(6.dp)
+                                .graphicsLayer { alpha = if (testing) pulse.value else 1f }
                                 .clip(PillShape)
                                 .background(stateColors.brandGradient()),
                         )
@@ -338,7 +384,12 @@ private fun LiveTestCard(
                 }
             }
 
-            AnimatedVisibility(visible = winner != null) {
+            AnimatedVisibility(
+                visible = winner != null,
+                enter = expandVertically(Motion.spatialDefault()) + fadeIn(Motion.effectsDefault()) +
+                    scaleIn(initialScale = 0.94f, animationSpec = Motion.bouncy()),
+                exit = shrinkVertically(Motion.spatialFast()) + fadeOut(Motion.effectsFast()),
+            ) {
                 Column {
                     VSpace(14.dp)
                     AppCard(tone = CardTone.Accent, modifier = Modifier.fillMaxWidth()) {

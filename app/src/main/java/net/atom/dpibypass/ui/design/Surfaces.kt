@@ -1,9 +1,17 @@
 package net.atom.dpibypass.ui.design
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,25 +33,31 @@ import androidx.compose.material3.SwitchColors
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import net.atom.dpibypass.ui.theme.Motion
 import net.atom.dpibypass.ui.theme.NumericMedium
 import java.util.Locale
 
 // ---------------------------------------------------------------------------
-// Yüzeyler — One UI'ın "focus block" dili.
+// Yüzeyler — One UI'ın "focus block" dili, buzlu cam malzemesiyle.
 //
 // İçerik, zeminden net biçimde ayrılan büyük yuvarlak bloklar hâlinde gruplanır.
-// Blok içindeki satırlar ince, içeriden boşluklu ayraçlarla ayrılır. Bu düzen
-// hem tarama hızını artırır hem de ekranı "form" değil "kart" gibi gösterir.
+// Blok içindeki satırlar ince, içeriden boşluklu ayraçlarla ayrılır.
+//
+// Malzeme kararı: kartlar artık düz yarı saydam renk DEĞİL, gerçek buzlu camdır
+// (bkz. Glass.kt). Arkalarındaki aurora bulanıklaşarak geçer; metin kontrastı
+// tint yoğunluğuyla garanti altına alınır.
 // ---------------------------------------------------------------------------
 
 // Başlıklar Türkçe yazıldığı için büyük harfe çevirme Türkçe kurallarıyla
@@ -65,25 +79,33 @@ fun AppCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val container = when (tone) {
-        CardTone.Plain -> scheme.surfaceContainer.copy(alpha = 0.92f)
-        CardTone.Raised -> scheme.surfaceContainerHigh.copy(alpha = 0.95f)
-        CardTone.Accent -> scheme.primary.copy(alpha = 0.14f)
-        CardTone.Danger -> scheme.error.copy(alpha = 0.13f)
+    // Cam rengi: nötr yüzeyden aksana doğru karıştırılır. Ton değişimi (ör. bir
+    // preset seçilince) renk yayıyla akar — kart "birden" renk değiştirmez.
+    val targetTint = when (tone) {
+        CardTone.Plain -> scheme.surface
+        CardTone.Raised -> scheme.surfaceContainerHigh
+        CardTone.Accent -> lerp(scheme.surface, scheme.primary, 0.30f)
+        CardTone.Danger -> lerp(scheme.surface, scheme.error, 0.26f)
     }
-    val borderColor = when (tone) {
-        CardTone.Accent -> scheme.primary.copy(alpha = 0.42f)
-        CardTone.Danger -> scheme.error.copy(alpha = 0.38f)
-        else -> scheme.outline
+    val targetBorder = when (tone) {
+        CardTone.Accent -> scheme.primary.copy(alpha = 0.52f)
+        CardTone.Danger -> scheme.error.copy(alpha = 0.46f)
+        else -> scheme.onSurface.copy(alpha = 0.14f)
     }
+    val tint by animateColorAsState(targetTint, Motion.effectsDefault(), label = "cardTint")
+    val border by animateColorAsState(targetBorder, Motion.effectsDefault(), label = "cardBorder")
+
     val interaction = remember { MutableInteractionSource() }
 
     Column(
         modifier = modifier
             .then(if (onClick != null) Modifier.pressScale(interaction) else Modifier)
-            .clip(shape)
-            .background(container)
-            .border(1.dp, borderColor, shape)
+            .glass(
+                shape = shape,
+                level = GlassLevel.Card,
+                tintColor = tint,
+                borderColor = border,
+            )
             .then(
                 if (onClick != null) {
                     Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick)
@@ -96,7 +118,10 @@ fun AppCard(
     )
 }
 
-/** Bölüm başlığı: küçük, kalın, aksan renkli — ekranı hızlı taranır kılar. */
+/**
+ * Bölüm başlığı: küçük, kalın, aksan renkli — ekranı hızlı taranır kılar.
+ * Başlığın solundaki kısa çizgi, bölümün başladığı yeri gözle yakalatır.
+ */
 @Composable
 fun SectionHeader(
     title: String,
@@ -109,6 +134,13 @@ fun SectionHeader(
             .padding(start = 6.dp, end = 6.dp, top = 22.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            Modifier
+                .size(width = 3.dp, height = 12.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)),
+        )
+        Spacer(Modifier.width(8.dp))
         Text(
             text = title.upperTr(),
             style = MaterialTheme.typography.labelSmall,
@@ -119,7 +151,10 @@ fun SectionHeader(
     }
 }
 
-/** Yuvarlak, tonlanmış ikon kabı — ayar satırlarının solundaki tanıtıcı öğe. */
+/**
+ * Yuvarlak, tonlanmış ikon kabı. İkon değiştiğinde eskisi yukarı süzülüp çıkar,
+ * yenisi aşağıdan gelir — durum değişimi fark edilir olur.
+ */
 @Composable
 fun IconBubble(
     icon: ImageVector,
@@ -127,20 +162,38 @@ fun IconBubble(
     tint: Color = MaterialTheme.colorScheme.primary,
     size: Dp = 40.dp,
 ) {
+    val bubbleTint by animateColorAsState(tint, Motion.effectsDefault(), label = "bubbleTint")
     Box(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(percent = 34))
-            .background(tint.copy(alpha = 0.16f)),
+            .background(bubbleTint.copy(alpha = 0.16f)),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.5f))
+        AnimatedContent(
+            targetState = icon,
+            transitionSpec = {
+                (slideInVertically { it / 2 } + fadeIn(Motion.effectsDefault())) togetherWith
+                    (slideOutVertically { -it / 2 } + fadeOut(Motion.effectsFast()))
+            },
+            contentAlignment = Alignment.Center,
+            label = "bubbleIcon",
+        ) { current ->
+            Icon(
+                current,
+                contentDescription = null,
+                tint = bubbleTint,
+                modifier = Modifier.size(size * 0.5f),
+            )
+        }
     }
 }
 
 /**
  * Liste satırı. Başlık + (opsiyonel) alt başlık, solda ikon, sağda serbest içerik.
- * Dokunulabilir olduğunda basılınca hafifçe küçülür (fiziksel geri bildirim).
+ *
+ * Dokunulabilir olduğunda iki kanaldan yanıt verir: satır hafifçe küçülür ve
+ * altına yumuşak bir vurgu yayılır. Tek kanal (yalnızca ölçek) ucuz hissettirir.
  */
 @Composable
 fun ListRow(
@@ -154,12 +207,23 @@ fun ListRow(
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val highlight by animateFloatAsState(
+        targetValue = if (pressed && onClick != null) 1f else 0f,
+        animationSpec = Motion.effectsDefault(),
+        label = "rowPress",
+    )
+    val highlightColor = MaterialTheme.colorScheme.onSurface
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .then(
                 if (onClick != null) {
-                    Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                    Modifier
+                        .pressScale(interaction, pressedScale = 0.985f)
+                        .background(highlightColor.copy(alpha = 0.06f * highlight))
+                        .clickable(interactionSource = interaction, indication = null, onClick = onClick)
                 } else {
                     Modifier
                 },
@@ -205,10 +269,13 @@ fun SwitchRow(
     icon: ImageVector? = null,
 ) {
     val haptics = rememberHaptics()
+    // Açıkken ikon aksan rengine geçer: anahtarı görmeden de durum okunur.
+    val tint = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     ListRow(
         title = title,
         subtitle = subtitle,
         icon = icon,
+        iconTint = tint,
         modifier = modifier,
         onClick = {
             haptics.select()
@@ -249,7 +316,8 @@ fun RowDivider(modifier: Modifier = Modifier, startInset: Dp = 18.dp) {
 
 /**
  * Ölçüm kutucuğu: küçük etiket + büyük değer. Değerler tabular rakamla yazılır,
- * böylece canlı güncellenirken yazı zıplamaz.
+ * böylece canlı güncellenirken yazı zıplamaz. Değer DEĞİŞTİĞİNDE eskisi yukarı
+ * kayıp yenisi aşağıdan gelir — canlı bir sayaç gibi okunur.
  */
 @Composable
 fun StatTile(
@@ -258,11 +326,17 @@ fun StatTile(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    animateValue: Boolean = true,
 ) {
+    val tileColor by animateColorAsState(valueColor, Motion.effectsDefault(), label = "tileValueColor")
     Column(
         modifier = modifier
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f))
+            .glass(
+                shape = MaterialTheme.shapes.medium,
+                level = GlassLevel.Inset,
+                tintColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                borderWidth = 0.dp,
+            )
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -282,12 +356,31 @@ fun StatTile(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(
-            text = value,
-            style = NumericMedium,
-            color = valueColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (animateValue) {
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    (slideInVertically { it } + fadeIn(Motion.effectsDefault())) togetherWith
+                        (slideOutVertically { -it } + fadeOut(Motion.effectsFast()))
+                },
+                label = "tileValue",
+            ) { current ->
+                Text(
+                    text = current,
+                    style = NumericMedium,
+                    color = tileColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else {
+            Text(
+                text = value,
+                style = NumericMedium,
+                color = tileColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
