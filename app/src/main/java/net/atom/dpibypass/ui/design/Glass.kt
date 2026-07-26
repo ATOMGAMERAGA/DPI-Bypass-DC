@@ -24,8 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawOutline
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.GraphicsLayer
@@ -131,7 +131,9 @@ fun Modifier.backdropSource(state: BackdropState?): Modifier {
     return this
         .onGloballyPositioned { state.origin = it.positionInWindow() }
         .drawWithContent {
-            record(state.layer) { this@drawWithContent.drawContent() }
+            // `record` DrawScope üzerinde GraphicsLayer'a tanımlı bir üye
+            // uzantıdır: alıcı katmanın kendisidir.
+            state.layer.record { this@drawWithContent.drawContent() }
             drawLayer(state.layer)
         }
 }
@@ -246,7 +248,7 @@ fun Modifier.glass(
                     // İki katman TEK bulanıklık geçişinde birleştirilir: alta zemin,
                     // üstüne içerik. Ayrı ayrı bulanıklaştırmak hem pahalı olur hem
                     // de kenarlarda çift halka bırakırdı.
-                    record(blurLayer) {
+                    blurLayer.record {
                         base?.let {
                             translate(
                                 left = -(position.value.x - it.origin.x),
