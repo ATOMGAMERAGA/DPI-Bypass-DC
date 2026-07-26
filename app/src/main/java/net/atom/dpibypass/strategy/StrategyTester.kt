@@ -37,6 +37,21 @@ data class StrategyTestResult(
  *
  * Puanlama: başarı (kaç hedef çalıştı) BİRİNCİL, gecikme (ping) İKİNCİL.
  * Böylece hem "çalışsın" hem "ping artmasın" gereksinimi karşılanır.
+ *
+ * ---------------------------------------------------------------------------
+ * NEDEN ESKİDEN HEP P1 SEÇİLİYORDU
+ * ---------------------------------------------------------------------------
+ * Bağlanırken test "ilk TAM başarılı stratejide dur" (stopOnFirstFullSuccess)
+ * kipinde çalışıyordu. Aday listesi ISS ailesine göre sıralı geldiği ve çoğu
+ * ailede başta P1 bulunduğu için, P1 hedeflerde bir şekilde çalıştığı anda
+ * yarış orada bitiyordu: P5 daha hızlı olsa bile ölçülmüyordu bile. Tanı
+ * ekranı hepsini ölçtüğü için "test P5 diyor, bağlanınca P1 oluyor" çelişkisi
+ * çıkıyordu. Erken çıkış kaldırıldı; hız artık ölçüm SÜRESİNİ sınırlayarak
+ * (timeoutMs/budgetMs) ve hatırlanan kazananı önce doğrulayarak sağlanıyor
+ * (bkz. [verify] ve DpiVpnService.resolvePlan).
+ *
+ * ByeDPI'ın native durumu tekildir (global `params`), bu yüzden stratejiler
+ * PARALEL değil sırayla denenir; aynı anda iki motor örneği açılamaz.
  */
 class StrategyTester(
     private val scope: CoroutineScope,
@@ -48,35 +63,27 @@ class StrategyTester(
     /**
      * @param strategies  test edilecek stratejiler (ISS'e göre sıralı verilebilir)
      * @param blockedHosts engellenen hedef domainler (ör. discord.com ...)
-     * @param stopOnFirstFullSuccess  bağlanma hızını artırmak için ilk "tüm
-     *   hedeflerde çalışan" stratejide dur (varsayılan). Sıralama en olası
-     *   çalışanı öne aldığından bağlanma çoğu zaman ilk 1-2 denemede tamamlanır.
-     *   Tanı ekranındaki "hepsini test et" için false verin.
+     * @param timeoutMs   tek bir hedefe TLS el sıkışması için üst sınır. Bağlanma
+     *   yarışında kısa (elenen strateji hızlı elensin), tanı ekranında uzun
+     *   (yavaş ama çalışan bir strateji yanlışlıkla "başarısız" görünmesin).
+     * @param budgetMs    tüm yarış için üst sınır; 0 = sınırsız. Süre dolduğunda
+     *   elde bir kazanan varsa yarış orada kesilir — bağlanma asla sürüncemede
+     *   kalmaz. Kesilme hâlinde bile o ana kadarki EN İYİSİ döner, "sıradaki"
+     *   değil.
      * @return en iyi çalışan strateji ve gecikmesi; hiçbiri çalışmazsa null
      */
     suspend fun run(
         strategies: List<Strategy>,
         blockedHosts: List<String>,
-        stopOnFirstFullSuccess: Boolean = true,
+        timeoutMs: Int = DEFAULT_TIMEOUT_MS,
+        budgetMs: Long = 0L,
     ): Pair<Strategy, Long?>? = withContext(Dispatchers.IO) {
+        val startedAt = System.currentTimeMillis()
         _results.value = strategies.map {
             StrategyTestResult(it, StrategyTestResult.State.Pending, totalTargets = blockedHosts.size)
         }
 
-        // Hedefleri DoH ile PARALEL çöz (birbirinden bağımsız ağ çağrıları) —
-        // sıralı çözümdeki gecikme toplanmaz, en yavaş sorgu kadar sürer.
-        val resolved: Map<String, String> = coroutineScope {
-            blockedHosts.map { host ->
-                async {
-                    val ip = doh.resolve(host).firstOrNull()
-                    if (ip == null) {
-                        Log.w(TAG, "DoH ile çözülemedi: $host")
-                        null
-                    } else host to ip
-                }
-            }.awaitAll().filterNotNull().toMap()
-        }
-
+        val resolved = resolve(blockedHosts)
         if (resolved.isEmpty()) {
             Log.w(TAG, "Hiçbir hedef DoH ile çözülemedi — test iptal")
             return@withContext null
@@ -88,7 +95,7 @@ class StrategyTester(
             if (!isActive) break
             updateResult(index) { it.copy(state = StrategyTestResult.State.Testing) }
 
-            val result = testOne(strategy, resolved)
+            val result = testOne(strategy, resolved, timeoutMs)
             updateResult(index) {
                 it.copy(
                     state = if (result.successCount > 0) StrategyTestResult.State.Success
@@ -102,14 +109,47 @@ class StrategyTester(
                 best = result.copy(strategy = strategy)
             }
 
-            // Erken çıkış: bir strateji TÜM hedeflerde çalışıyorsa daha fazla
-            // preset denemeye gerek yok — bağlanma anında tamamlanır.
-            if (stopOnFirstFullSuccess && result.successCount >= resolved.size) {
+            if (budgetMs > 0L && best != null &&
+                System.currentTimeMillis() - startedAt >= budgetMs
+            ) {
+                Log.i(TAG, "Süre bütçesi doldu; ${strategies.size - index - 1} aday denenmedi")
                 break
             }
         }
 
         best?.let { it.strategy to it.latencyMs }
+    }
+
+    /**
+     * Tek bir stratejiyi doğrular: TÜM hedeflerde çalışıyorsa gecikmesini, aksi
+     * hâlde null döner. Bağlanmanın hızlı yolu budur — hatırlanan kazanan hâlâ
+     * iş görüyorsa yarışa hiç girilmez.
+     */
+    suspend fun verify(
+        strategy: Strategy,
+        blockedHosts: List<String>,
+        timeoutMs: Int = QUICK_TIMEOUT_MS,
+    ): Long? = withContext(Dispatchers.IO) {
+        val resolved = resolve(blockedHosts)
+        if (resolved.isEmpty()) return@withContext null
+        val result = testOne(strategy, resolved, timeoutMs)
+        if (result.successCount >= resolved.size) result.latencyMs else null
+    }
+
+    /**
+     * Hedefleri DoH ile PARALEL çöz (birbirinden bağımsız ağ çağrıları) — sıralı
+     * çözümdeki gecikme toplanmaz, en yavaş sorgu kadar sürer.
+     */
+    private suspend fun resolve(hosts: List<String>): Map<String, String> = coroutineScope {
+        hosts.map { host ->
+            async(Dispatchers.IO) {
+                val ip = doh.resolve(host).firstOrNull()
+                if (ip == null) {
+                    Log.w(TAG, "DoH ile çözülemedi: $host")
+                    null
+                } else host to ip
+            }
+        }.awaitAll().filterNotNull().toMap()
     }
 
     /** Başarı birincil, gecikme ikincil kıyaslama. */
@@ -126,6 +166,7 @@ class StrategyTester(
     private suspend fun testOne(
         strategy: Strategy,
         resolved: Map<String, String>,
+        timeoutMs: Int,
     ): StrategyTestResult {
         val port = freePort()
         val proxy = ByeDpiProxy()
@@ -145,7 +186,9 @@ class StrategyTester(
             // 3 hedefi sıralı deneyen ~9s yerine.
             val latencies = coroutineScope {
                 resolved.map { (host, ip) ->
-                    async(Dispatchers.IO) { Socks5TestClient.testTls(port, ip, host) }
+                    async(Dispatchers.IO) {
+                        Socks5TestClient.testTls(port, ip, host, timeoutMs = timeoutMs)
+                    }
                 }.awaitAll()
             }.filterNotNull()
             val success = latencies.size
@@ -193,6 +236,13 @@ class StrategyTester(
 
     companion object {
         private const val TAG = "StrategyTester"
+
+        /** Tanı ekranı: cömert; yavaş ama çalışan strateji elenmesin. */
+        const val DEFAULT_TIMEOUT_MS = 3000
+
+        /** Bağlanma yolu: kısa; çalışmayan aday saniyeler harcamasın. */
+        const val QUICK_TIMEOUT_MS = 1500
+
         val DEFAULT_BLOCKED_HOSTS = listOf(
             "discord.com",
             "cdn.discordapp.com",

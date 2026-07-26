@@ -5,12 +5,15 @@
     android:height="108dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-    <!-- translateY: renkli foreground ile aynı optik merkezleme düzeltmesi.
-         Ölçek 0.66 olduğu için kaydırma oransal olarak biraz büyük (16 * 0.66/0.56). -->
+    <!-- Renkli foreground ile BİREBİR aynı ölçek ve kaydırma. Önceki 0.66'lık
+         ölçek, kalkanın üst köşesini merkezden 190 birim (40dp yarıçap) uzağa
+         itiyordu; 36dp'lik görünür daireyi aştığı için tema ikonunda köşeler
+         kırpılıyor, üstelik logo renkli sürümden gözle görülür biçimde büyük
+         duruyordu. Tema değiştirince logo boyut değiştirmemelidir. -->
     <group
-        android:scaleX="0.66" android:scaleY="0.66"
+        android:scaleX="0.54" android:scaleY="0.54"
         android:pivotX="256" android:pivotY="256"
-        android:translateY="19">
+        android:translateY="4">
         <path
             android:pathData="M256 40 L432 104 V268 C432 372 360 440 256 472 C152 440 80 372 80 268 V104 Z"
             android:strokeColor="#FFFFFF"

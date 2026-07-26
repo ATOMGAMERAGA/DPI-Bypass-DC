@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -134,12 +135,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Test şu an çalıştırılabilir mi? ByeDPI'ın native durumu tekildir (global
+     * `params`): tünel açıkken ikinci bir motor örneği açmak çalışan tüneli
+     * bozar. Bu yüzden test yalnızca tünel kapalıyken yapılır.
+     */
+    val canRunTest: StateFlow<Boolean> = connectionState
+        .map { it == ConnectionState.Disconnected || it == ConnectionState.Failed }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /**
      * Canlı strateji testi — VPN kurmadan, yerel SOCKS + DoH ile her preset'i tek
      * tek dener; en düşük ping'li çalışanı seçer ve kaydeder. "Gerçek interneti
      * yavaşlatmadan" testin çekirdeği burasıdır.
+     *
+     * Kazanan iki yere yazılır: manuel kipte önseçili olsun diye ayarlara, ve bu
+     * ağın profiline — böylece "Otomatik"te bağlanırken hızlı yol doğrudan bu
+     * stratejiyi doğrular. Testin bulduğu kazanan ile bağlanmanın seçtiği
+     * strateji artık ayrışmaz.
      */
     fun runStrategyTest() {
-        if (_testing.value) return
+        if (_testing.value || !canRunTest.value) return
         _testing.value = true
         _testWinner.value = null
         launch {
@@ -150,8 +165,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val detector = IspDetector(getApplication<Application>())
                 // Testin sıralaması da gerçek ağa göre yapılır: ev Wi-Fi'ında
                 // SIM operatörünün stratejileriyle başlamak zaman kaybıdır.
-                val family = detector.bestGuessFamily(s.selectedIsp)
-                val ordered = StrategyPool.orderedFor(family)
+                val transport = detector.activeTransport()
+                val isp = detector.bestGuess() ?: s.selectedIsp
+                val ordered = StrategyPool.orderedFor(isp.family)
                 val hosts = StrategyTester.DEFAULT_BLOCKED_HOSTS + extraHosts(s)
 
                 // Tester sonuçlarını UI'a canlı yansıt. (viewModelScope.launch -> Job;
@@ -159,11 +175,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val mirror = viewModelScope.launch {
                     tester.results.collect { _testResults.value = it }
                 }
-                // Tanı ekranı: erken çıkma yok — kullanıcıya tüm preset sonuçları göster.
-                val best = tester.run(ordered, hosts, stopOnFirstFullSuccess = false)
+                // Tanı ekranı: süre bütçesi yok — kullanıcıya tüm preset sonuçları
+                // gösterilir, ölçüm de cömert zaman aşımıyla yapılır.
+                val best = tester.run(
+                    strategies = ordered,
+                    blockedHosts = hosts,
+                    timeoutMs = StrategyTester.DEFAULT_TIMEOUT_MS,
+                )
                 mirror.cancel()
                 if (best != null) {
                     repo.setSelectedStrategy(best.first.id)
+                    repo.saveNetworkProfile(
+                        IspDetector.networkKey(transport, isp),
+                        best.first.id,
+                    )
                     _testWinner.value = _testResults.value.firstOrNull { it.strategy.id == best.first.id }
                 }
             } finally {

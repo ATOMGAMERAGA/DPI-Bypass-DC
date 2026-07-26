@@ -129,12 +129,6 @@ class IspDetector(private val context: Context) {
         }
     }
 
-    /**
-     * Strateji havuzunu sıralamak için DPI ailesi. [bestGuess] ile aynı mantığı
-     * kullanır; çağıranların tek tek taşıyıcı kontrolü yapmasına gerek kalmaz.
-     */
-    suspend fun bestGuessFamily(fallback: Isp): IspFamily = (bestGuess() ?: fallback).family
-
     private fun fetchOrg(): String? {
         // ipinfo.io/org → "AS9121 Turk Telekom" gibi bir dize döner.
         return try {
@@ -154,5 +148,13 @@ class IspDetector(private val context: Context) {
 
     companion object {
         private const val TAG = "IspDetector"
+
+        /**
+         * Ağ profillerinin anahtarı: taşıyıcı + ISS. SSID kullanılmaz — okumak
+         * konum izni ister ve bu uygulamanın hiçbir yerinde konum istemiyoruz.
+         * Taşıyıcı + ISS ikilisi, "evdeki Türk Telekom" ile "dışarıdaki Turkcell
+         * mobil"i ayırmaya zaten yeter; DPI davranışı da bu ikiliye bağlıdır.
+         */
+        fun networkKey(transport: Transport, isp: Isp): String = "${transport.name}:${isp.name}"
     }
 }

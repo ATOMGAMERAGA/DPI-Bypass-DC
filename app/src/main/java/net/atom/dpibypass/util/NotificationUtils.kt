@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import net.atom.dpibypass.R
 import net.atom.dpibypass.ui.MainActivity
 import net.atom.dpibypass.vpn.DpiVpnService
@@ -17,42 +18,44 @@ import net.atom.dpibypass.vpn.DpiVpnService
  * Bildirimler ve Samsung Now Bar / Android 16 "Live Update" entegrasyonu.
  *
  * ---------------------------------------------------------------------------
- * NEDEN ÖNCEDEN NOW BAR'DA GÖRÜNMÜYORDUK
+ * NEDEN NOW BAR'DA GÖRÜNMÜYORDUK
  * ---------------------------------------------------------------------------
- * One UI 8, Now Bar'ı Android 16'nın (API 36) "promoted ongoing" bildirim
- * mekanizmasına bağladı. Sistem, bir bildirimi Now Bar'a ancak
- * `Notification.hasPromotableCharacteristics()` doğru dönerse alır. AOSP'deki
- * koşullar (android16-release, Notification.java) şunlardır:
+ * One UI 8, Now Bar'ı Android 16'nın "promoted ongoing" bildirim mekanizmasına
+ * bağladı. Sistem bir bildirimi Now Bar'a ancak `NotificationManagerService`
+ * şu üç şey aynı anda doğruysa alır:
  *
- *   1. `isOngoingEvent()`      → setOngoing(true)
- *   2. `hasTitle()`            → boş olmayan setContentTitle
- *   3. `!isGroupSummary()`     → grup özeti OLMAYACAK
- *   4. `!containsCustomViews()`→ RemoteViews KULLANILMAYACAK
- *   5. `isColorizedRequested()`→ setColorized(true)   (evet, ZORUNLU)
- *   6. `hasPromotableStyle()`  → stil yok / BigText / Call / Progress
- * ve ayrıca kanalın önemi IMPORTANCE_MIN'den YÜKSEK olmalıdır.
+ *   1. kullanıcı uygulama için canlı bildirimleri kapatmamış (varsayılan açık),
+ *   2. kanal önemi IMPORTANCE_MIN'in ÜSTÜNDE,
+ *   3. `Notification.hasPromotableCharacteristics()` → true.
  *
- * Eski kodda 5 ve 6 sağlanıyordu ama `setSilent(true)` çağrısı bildirime
- * "silent" grup anahtarı ekliyor, kanal önemi de en düşük basamağa yakın
- * kalıyordu; üstelik promosyon hiç TALEP edilmiyordu. Bu yüzden uygulama
- * Samsung'un Now Bar uygulama listesinde bile belirmiyordu — o liste, en az bir
- * kez uygun (promote edilebilir) bildirim göndermiş uygulamalarla dolar.
+ * Kritik nokta 3. maddede: **bu sözleşme Android 16 içinde DEĞİŞTİ.** AOSP
+ * kaynağı (frameworks/base, core/java/android/app/Notification.java):
  *
- * Şimdi:
- *   * Sessizlik `setSilent` ile değil, KANAL üzerinden sağlanıyor (grup anahtarı
- *     eklenmiyor).
- *   * Tünel bildirimi kendi kanalında ve IMPORTANCE_DEFAULT ile yayınlanıyor
- *     (sesi kapalı). Kanal önemi oluşturulduktan sonra değiştirilemediği için
- *     yeni bir kanal kimliği kullanıldı; eskisi siliniyor.
- *   * `android.requestPromotedOngoing` ve `android.shortCriticalText` extra'ları
- *     doğrudan yazılıyor. NotificationCompat'ın setRequestPromotedOngoing /
- *     setShortCriticalText yardımcıları da tam olarak bunu yapar (androidx core
- *     1.17+); extra'yı elle yazmak aynı sonucu verir ve kütüphane sürümüne
- *     bağımlılık getirmez.
+ *   android16-release:
+ *       ongoing && başlık var && grup özeti değil && özel görünüm yok
+ *       && isColorizedRequested()          ← setColorized(true) ZORUNLU
+ *       && hasPromotableStyle()
  *
- * Not: Now Bar ayrıca kullanıcı tarafında açık olmalıdır (Ayarlar → Kilit ekranı
- * ve AOD → Now bar). Uygulama listesinde görünmek için en az bir kez bağlanmak
- * yeterlidir.
+ *   android16-qpr1-release (ui_rich_ongoing bayrağı açıkken — One UI 8.5 dahil):
+ *       isRequestPromotedOngoing()         ← setRequestPromotedOngoing ZORUNLU
+ *       && ongoing && başlık var && stil uygun && grup özeti değil
+ *       && özel görünüm yok
+ *       && !isColorizedRequested()         ← setColorized(true) YASAK
+ *
+ * Yani iki sürümün şartları birbirini DIŞLIYOR: birinde zorunlu olan, diğerinde
+ * diskalifiye sebebi. Eski kod `setColorized(true)` gönderiyordu; QPR1 ve
+ * sonrasındaki cihazlarda bildirim bu yüzden hiç promote edilmedi, uygulama da
+ * sistemin canlı bildirim listesinde belirmedi (o liste, en az bir kez uygun
+ * bildirim göndermiş uygulamalarla dolar).
+ *
+ * ÇÖZÜM: sürüm tahmin etmiyoruz — CİHAZA SORUYORUZ. İki aday bildirim kurulur
+ * ve platformun kendi yüklemi olan `hasPromotableCharacteristics()` ile hangisinin
+ * kabul edildiği ölçülür (bkz. [isPromotable]). Hangi One UI/Android sürümü
+ * olursa olsun doğru olanı gider; sözleşme ileride yine değişirse de kod
+ * kendiliğinden uyum sağlar.
+ *
+ * Not: Now Bar'ın ayrıca kullanıcı tarafında açık olması gerekir
+ * (Ayarlar → Kilit ekranı ve AOD → Now bar).
  */
 object NotificationUtils {
 
@@ -63,14 +66,16 @@ object NotificationUtils {
 
     const val NOTIFICATION_ID = 1
 
-    // One UI mavisi — bildirim "colorized" olduğunda vurgu rengi olarak kullanılır ve
-    // Samsung Now Bar / kilit ekranı canlı göstergesinde marka rengini verir.
+    /** Android 16. compileSdk 35 olduğu için sabit adı yerine sayısı yazılır. */
+    private const val SDK_ANDROID_16 = 36
+
+    // One UI mavisi — bildirimin vurgu rengi; Now Bar / kilit ekranı göstergesinde
+    // marka rengini verir.
     private const val ACCENT_COLOR = 0xFF0072F5.toInt()
 
-    // Android 16 (API 36) "Live Update" extra anahtarları. Platform sabitleri
-    // compileSdk 36 gerektirdiği için değerleri doğrudan yazıyoruz; anahtarlar
-    // AOSP'de bu adlarla sabittir (Notification.EXTRA_REQUEST_PROMOTED_ONGOING /
-    // EXTRA_SHORT_CRITICAL_TEXT).
+    // Android 16 "Live Update" extra anahtarları. Platform sabitleri compileSdk 36
+    // gerektirir; anahtarlar AOSP'de bu adlarla sabittir
+    // (Notification.EXTRA_REQUEST_PROMOTED_ONGOING / EXTRA_SHORT_CRITICAL_TEXT).
     private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
     private const val EXTRA_SHORT_CRITICAL_TEXT = "android.shortCriticalText"
 
@@ -79,7 +84,7 @@ object NotificationUtils {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
 
         // Eski düşük önemli kanalı temizle: aynı işi yapan iki kanal, kullanıcı
-        // ayarlarında kafa karıştırır ve eskisi Now Bar için uygun değildir.
+        // ayarlarında kafa karıştırır ve eskisi Live Update için uygun değildir.
         runCatching { manager.deleteNotificationChannel(LEGACY_CHANNEL_ID) }
 
         val channel = NotificationChannel(
@@ -95,8 +100,7 @@ object NotificationUtils {
             enableLights(false)
             enableVibration(false)
             setShowBadge(false)
-            // Kilit ekranında tam görünür olmalı ki Now Bar canlı göstergeyi
-            // yakalayabilsin (gizli olursa Now Bar'a düşmez).
+            // Kilit ekranında tam görünür olmalı ki canlı gösterge oraya düşebilsin.
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
         manager.createNotificationChannel(channel)
@@ -118,6 +122,49 @@ object NotificationUtils {
         connectedSinceMs: Long = System.currentTimeMillis(),
         shortStatus: String? = null,
     ): Notification {
+        fun variant(colorized: Boolean, requestPromotion: Boolean): Notification =
+            build(
+                context = context,
+                title = title,
+                content = content,
+                connected = connected,
+                ongoing = connected || liveIndicator,
+                connectedSinceMs = connectedSinceMs,
+                shortStatus = shortStatus,
+                colorized = colorized,
+                requestPromotion = requestPromotion,
+            )
+
+        if (!liveIndicator || Build.VERSION.SDK_INT < SDK_ANDROID_16) {
+            return variant(colorized = false, requestPromotion = false)
+        }
+
+        // Android 16 QPR1+ sözleşmesi: promosyon TALEP edilir, renklendirme YASAK.
+        val requested = variant(colorized = false, requestPromotion = true)
+        if (isPromotable(requested)) return requested
+
+        // Android 16 ilk sürüm sözleşmesi: renklendirme ZORUNLU, talep gereksiz
+        // (ama zararsız — bilinmeyen extra'lar yok sayılır).
+        val colorized = variant(colorized = true, requestPromotion = true)
+        if (isPromotable(colorized)) return colorized
+
+        // Hiçbiri kabul edilmediyse (ör. bayrak kapalı bir cihaz) yeni sözleşmeye
+        // uyanı gönderiyoruz: bildirim normal şekilde görünür, sadece promote
+        // edilmez.
+        return requested
+    }
+
+    private fun build(
+        context: Context,
+        title: String,
+        content: String,
+        connected: Boolean,
+        ongoing: Boolean,
+        connectedSinceMs: Long,
+        shortStatus: String?,
+        colorized: Boolean,
+        requestPromotion: Boolean,
+    ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java),
@@ -136,22 +183,21 @@ object NotificationUtils {
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
+            // Promote edilebilirliğin değişmeyen üç şartı: başlık, ongoing,
+            // özel görünüm/grup özeti YOK. (setSilent de KULLANILMIYOR — grup
+            // anahtarı ekler; sessizlik kanal düzeyinde sağlanıyor.)
             .setContentTitle(title)
             .setContentText(content)
-            // Promote edilebilirliğin ilk koşulu. Tünel açıkken her hâlükârda
-            // kalıcıdır; kapalıyken yalnızca canlı gösterge açıksa.
-            .setOngoing(connected || liveIndicator)
+            .setOngoing(ongoing)
             .setOnlyAlertOnce(true)
             .setContentIntent(contentIntent)
             .addAction(0, actionLabel, actionIntent)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            // ZORUNLU: promote edilebilirlik `isColorizedRequested()` ister.
-            // (setSilent KULLANILMIYOR — grup anahtarı ekleyip promosyonu bozar;
-            // sessizlik kanal düzeyinde sağlanıyor.)
-            .setColorized(true)
             .setColor(ACCENT_COLOR)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+
+        if (colorized) builder.setColorized(true)
 
         if (connected) {
             // Canlı "bağlı süresi" kronometresi. Hem kullanıcıya bilgi verir hem
@@ -164,7 +210,7 @@ object NotificationUtils {
             builder.setShowWhen(false)
         }
 
-        if (liveIndicator) {
+        if (requestPromotion) {
             builder.addExtras(
                 Bundle().apply {
                     putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
@@ -176,5 +222,49 @@ object NotificationUtils {
         }
 
         return builder.build()
+    }
+
+    /**
+     * Bildirimi platformun kendi yüklemine sorar: "bunu Now Bar'a alır mıydın?"
+     *
+     * `hasPromotableCharacteristics()` API 36 ile gelen genel API'dir; compileSdk
+     * 35 olduğu için yansımayla çağrılır. Yoksa/başarısızsa `false` döner —
+     * çağıran taraf o zaman bilinen sözleşmelerden birine düşer.
+     */
+    private fun isPromotable(notification: Notification): Boolean = runCatching {
+        Notification::class.java
+            .getMethod("hasPromotableCharacteristics")
+            .invoke(notification) as? Boolean ?: false
+    }.getOrDefault(false)
+
+    /** Canlı gösterge (Now Bar) için sistemin o anki durumu — ayarlarda gösterilir. */
+    enum class LiveUpdateState {
+        /** Android 16 öncesi: promoted ongoing mekanizması yok. */
+        Unsupported,
+
+        /** Uygulamanın bildirimleri kapalı — hiçbir gösterge çıkamaz. */
+        NotificationsOff,
+
+        /** Kullanıcı bu uygulama için canlı bildirimleri kapatmış. */
+        Blocked,
+
+        /** Her şey hazır. */
+        Ready,
+    }
+
+    fun liveUpdateState(context: Context): LiveUpdateState {
+        if (Build.VERSION.SDK_INT < SDK_ANDROID_16) return LiveUpdateState.Unsupported
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return LiveUpdateState.NotificationsOff
+        }
+        val manager = context.getSystemService(NotificationManager::class.java)
+            ?: return LiveUpdateState.Unsupported
+        // API 36: NotificationManager.canPostPromotedNotifications()
+        val allowed = runCatching {
+            NotificationManager::class.java
+                .getMethod("canPostPromotedNotifications")
+                .invoke(manager) as? Boolean
+        }.getOrNull()
+        return if (allowed == false) LiveUpdateState.Blocked else LiveUpdateState.Ready
     }
 }
